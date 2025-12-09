@@ -7,9 +7,9 @@ import { resolveIds } from "@/lib/api";
 import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 import type { ChatContext } from "@/types";
 
-// Demo/test IDs - replace with your actual test data
-const DEMO_LOCATION_ID = "22222222-2222-2222-2222-222222222222";
-const DEMO_CONTACT_ID = "33333333-3333-3333-3333-333333333333";
+// Demo/test IDs - Snapshot location for testing
+const DEMO_LOCATION_ID = "aa356f4f-57e6-43c4-be7b-20e1d4976717";
+const DEMO_CONTACT_ID = "33333333-3333-3333-3333-333333333333"; // Not used in test mode
 
 function ChatPageContent() {
   const searchParams = useSearchParams();
