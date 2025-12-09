@@ -7,9 +7,8 @@ import { resolveIds } from "@/lib/api";
 import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 import type { ChatContext } from "@/types";
 
-// Demo/test IDs - Snapshot location for testing
-const DEMO_LOCATION_ID = "aa356f4f-57e6-43c4-be7b-20e1d4976717";
-const DEMO_CONTACT_ID = "33333333-3333-3333-3333-333333333333"; // Not used in test mode
+// Fallback GHL location ID for demo/test mode (Snapshot location)
+const FALLBACK_GHL_LOCATION_ID = "ojKtYYUFbTKUmDCA5KUH";
 
 function ChatPageContent() {
   const searchParams = useSearchParams();
@@ -117,16 +116,27 @@ function ChatPageContent() {
         }
       }
 
-      // PRIORITY 4: Demo/Test mode (no auth)
+      // PRIORITY 4: Demo/Test mode (no auth) - resolve from fallback GHL ID
       console.log("No context params provided, using test mode");
-      setAuthStatus("test mode");
-      setContext({
-        locationId: DEMO_LOCATION_ID,
-        // No contactId needed for test mode
-        locationName: "Demo Location",
-        contactName: "Demo User",
-        testMode: true,
-      });
+      setAuthStatus("test mode - resolving location");
+      try {
+        const resolved = await resolveIds({
+          ghl_location_id: FALLBACK_GHL_LOCATION_ID,
+        });
+        if (resolved.location?.id) {
+          setContext({
+            locationId: resolved.location.id,
+            locationName: resolved.location.name || "Demo Location",
+            contactName: "Demo User",
+            testMode: true,
+          });
+          setAuthStatus("test mode");
+        } else {
+          setError("Failed to resolve demo location");
+        }
+      } catch (err) {
+        setError(`Failed to initialize test mode: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
       setIsLoading(false);
     }
 
