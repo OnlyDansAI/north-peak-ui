@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatContainer } from "@/components/chat";
 import { resolveIds } from "@/lib/api";
+import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 import type { ChatContext } from "@/types";
 
 // Demo/test IDs - replace with your actual test data
@@ -15,6 +16,7 @@ function ChatPageContent() {
   const [context, setContext] = useState<ChatContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<string>("initializing");
 
   useEffect(() => {
     async function initializeContext() {
@@ -27,8 +29,9 @@ function ChatPageContent() {
       const ghlLocationId = searchParams.get("ghl_location_id") || searchParams.get("locationId");
       const ghlContactId = searchParams.get("ghl_contact_id") || searchParams.get("contactId");
 
-      // If we have our UUIDs directly, use them
+      // PRIORITY 1: If we have our UUIDs directly, use them
       if (locationId && contactId) {
+        setAuthStatus("using URL params (UUIDs)");
         setContext({
           locationId,
           contactId,
@@ -37,8 +40,9 @@ function ChatPageContent() {
         return;
       }
 
-      // If we have GHL IDs, resolve them
+      // PRIORITY 2: If we have GHL IDs in URL, resolve them
       if (ghlLocationId || ghlContactId) {
+        setAuthStatus("resolving GHL IDs from URL");
         try {
           const resolved = await resolveIds({
             ghl_location_id: ghlLocationId || undefined,
@@ -54,22 +58,68 @@ function ChatPageContent() {
                 .filter(Boolean)
                 .join(" ") || undefined,
             });
+            setIsLoading(false);
+            return;
+          } else if (resolved.location?.id) {
+            // We have location but no contact - might be okay for some use cases
+            // For now, require both
+            setError(`Contact not found for GHL ID: ${ghlContactId}`);
+            setIsLoading(false);
+            return;
           } else {
-            // Partial resolution - check what's missing
-            const missing = [];
-            if (!resolved.location?.id) missing.push("location");
-            if (!resolved.contact?.id) missing.push("contact");
-            setError(`Could not resolve: ${missing.join(", ")}`);
+            setError(`Location not found for GHL ID: ${ghlLocationId}`);
+            setIsLoading(false);
+            return;
           }
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to resolve IDs");
+          setIsLoading(false);
+          return;
         }
-        setIsLoading(false);
-        return;
       }
 
-      // No params provided - use demo mode
+      // PRIORITY 3: Try SSO authentication if in GHL iframe
+      if (isInGHLIframe()) {
+        setAuthStatus("authenticating via GHL SSO");
+        try {
+          const userData = await authenticateWithGHL();
+          console.log("GHL SSO user data:", userData);
+
+          // We got the user, now resolve their location
+          if (userData.activeLocation) {
+            const resolved = await resolveIds({
+              ghl_location_id: userData.activeLocation,
+            });
+
+            if (resolved.location?.id) {
+              // SSO gives us location but not contact
+              // For chat, we still need a contact ID
+              // Options: create anonymous contact, require contact in URL, or show location-only mode
+              setContext({
+                locationId: resolved.location.id,
+                contactId: DEMO_CONTACT_ID, // TODO: Create or lookup contact
+                locationName: resolved.location.name,
+                contactName: userData.userName || userData.email,
+              });
+              setAuthStatus(`authenticated as ${userData.userName || userData.email}`);
+              setIsLoading(false);
+              return;
+            }
+          }
+
+          setError("SSO succeeded but no active location found");
+          setIsLoading(false);
+          return;
+        } catch (err) {
+          console.warn("GHL SSO failed:", err);
+          // Fall through to demo mode
+          setAuthStatus("SSO failed, using demo mode");
+        }
+      }
+
+      // PRIORITY 4: Demo mode (no auth)
       console.log("No context params provided, using demo mode");
+      setAuthStatus("demo mode");
       setContext({
         locationId: DEMO_LOCATION_ID,
         contactId: DEMO_CONTACT_ID,
@@ -84,8 +134,9 @@ function ChatPageContent() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex flex-col items-center justify-center h-screen gap-2">
         <div className="text-muted-foreground">Loading...</div>
+        <div className="text-xs text-muted-foreground">{authStatus}</div>
       </div>
     );
   }
@@ -98,6 +149,7 @@ function ChatPageContent() {
         <div className="text-sm text-muted-foreground">
           Expected URL params: location_id & contact_id (our UUIDs) or ghl_location_id & ghl_contact_id
         </div>
+        <div className="text-xs text-muted-foreground mt-4">Auth status: {authStatus}</div>
       </div>
     );
   }
