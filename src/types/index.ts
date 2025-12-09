@@ -37,6 +37,35 @@ export interface ResolveResponse {
   contact_error?: string;
 }
 
+// Test Session Types
+
+export interface TestSession {
+  session_id: string;
+  location_id: string;
+  channel: string;
+  test_contact_name: string;
+  status: "active" | "ended";
+}
+
+export interface DebugInfo {
+  route_name: string | null;
+  route_confidence: number | null;
+  intent?: string | null;
+  tools_called: string[];
+  goal_achieved: boolean;
+  goal_type: string | null;
+  processing_time_ms: number | null;
+}
+
+export interface TestMessageResponse {
+  success: boolean;
+  reply: string | null;
+  should_escalate: boolean;
+  escalation_reason: string | null;
+  debug: DebugInfo;
+  interaction_id: string | null;
+}
+
 // Chat UI Types
 
 export interface ChatMessage {
@@ -45,11 +74,15 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   isLoading?: boolean;
+  debug?: DebugInfo;
 }
 
 export interface ChatContext {
   locationId: string;
-  contactId: string;
+  contactId?: string;  // Optional now - not needed for test sessions
   locationName?: string;
   contactName?: string;
+  // Test session mode
+  testMode?: boolean;
+  sessionId?: string;
 }

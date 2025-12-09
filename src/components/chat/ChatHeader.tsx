@@ -7,13 +7,15 @@ interface ChatHeaderProps {
   subtitle?: string;
   status?: "online" | "offline" | "connecting";
   className?: string;
+  onReset?: () => void;
 }
 
 export function ChatHeader({
-  title = "North Peak AI",
+  title = "AI Assistant",
   subtitle,
   status = "online",
   className,
+  onReset,
 }: ChatHeaderProps) {
   return (
     <header
@@ -24,7 +26,7 @@ export function ChatHeader({
     >
       {/* Avatar/Logo */}
       <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-        NP
+        AI
       </div>
 
       {/* Title & Status */}
@@ -34,6 +36,29 @@ export function ChatHeader({
           <p className="text-sm text-muted-foreground truncate">{subtitle}</p>
         )}
       </div>
+
+      {/* Reset button (only in test mode) */}
+      {onReset && (
+        <button
+          onClick={onReset}
+          className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+          title="Reset conversation"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Status indicator */}
       <div className="flex items-center gap-2">

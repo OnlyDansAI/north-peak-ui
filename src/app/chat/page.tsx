@@ -93,15 +93,15 @@ function ChatPageContent() {
 
             if (resolved.location?.id) {
               // SSO gives us location but not contact
-              // For chat, we still need a contact ID
-              // Options: create anonymous contact, require contact in URL, or show location-only mode
+              // Use test mode for staff testing the bot
               setContext({
                 locationId: resolved.location.id,
-                contactId: DEMO_CONTACT_ID, // TODO: Create or lookup contact
+                // No contactId - use test mode instead
                 locationName: resolved.location.name,
                 contactName: userData.userName || userData.email,
+                testMode: true,
               });
-              setAuthStatus(`authenticated as ${userData.userName || userData.email}`);
+              setAuthStatus(`authenticated as ${userData.userName || userData.email} (test mode)`);
               setIsLoading(false);
               return;
             }
@@ -117,14 +117,15 @@ function ChatPageContent() {
         }
       }
 
-      // PRIORITY 4: Demo mode (no auth)
-      console.log("No context params provided, using demo mode");
-      setAuthStatus("demo mode");
+      // PRIORITY 4: Demo/Test mode (no auth)
+      console.log("No context params provided, using test mode");
+      setAuthStatus("test mode");
       setContext({
         locationId: DEMO_LOCATION_ID,
-        contactId: DEMO_CONTACT_ID,
+        // No contactId needed for test mode
         locationName: "Demo Location",
         contactName: "Demo User",
+        testMode: true,
       });
       setIsLoading(false);
     }
