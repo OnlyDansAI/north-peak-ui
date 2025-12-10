@@ -29,6 +29,7 @@ export function ChatContainer({ context }: ChatContainerProps) {
     locationId: context.locationId,
     contactId: context.contactId,
     testMode: context.testMode ?? true, // Default to test mode
+    userName: context.contactName, // Pass user name for test contact creation
     userEmail: context.contactName, // Use contact name as email for now
   });
 
