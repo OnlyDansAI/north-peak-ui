@@ -22,6 +22,7 @@ export interface ResolveResponse {
   location?: {
     id: string;
     name: string;
+    organization_id?: string | null;
     ghl_location_id: string;
     ai_enabled: boolean;
   } | null;
