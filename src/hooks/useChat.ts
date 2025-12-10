@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { sendMessage, sendTestMessage, createTestSession, resetTestSession } from "@/lib/api";
 import type { ChatMessage, DebugInfo } from "@/types";
+
+// localStorage keys
+const STORAGE_KEY_PREFIX = "north_peak_chat_";
+const STORAGE_SESSION_KEY = "north_peak_current_session";
 
 interface UseChatOptions {
   locationId: string;
@@ -23,6 +27,28 @@ interface UseChatReturn {
   sendUserMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
   resetSession: () => Promise<void>;
+  startNewChat: () => Promise<void>;
+}
+
+// Helper to serialize messages for localStorage
+function serializeMessages(messages: ChatMessage[]): string {
+  return JSON.stringify(messages.map(m => ({
+    ...m,
+    timestamp: m.timestamp.toISOString(),
+  })));
+}
+
+// Helper to deserialize messages from localStorage
+function deserializeMessages(json: string): ChatMessage[] {
+  try {
+    const parsed = JSON.parse(json);
+    return parsed.map((m: Record<string, unknown>) => ({
+      ...m,
+      timestamp: new Date(m.timestamp as string),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function useChat({
@@ -39,10 +65,30 @@ export function useChat({
   const [lastDebug, setLastDebug] = useState<DebugInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const hasRestoredMessages = useRef(false);
 
-  // Initialize test session if in test mode
+  // Try to restore existing session from localStorage on mount
   useEffect(() => {
-    if (testMode && !sessionId && !isInitializing && locationId) {
+    if (testMode && !sessionId && !isInitializing && locationId && !hasRestoredMessages.current) {
+      hasRestoredMessages.current = true;
+
+      // Check if we have a saved session for this location
+      const savedSessionId = localStorage.getItem(`${STORAGE_SESSION_KEY}_${locationId}`);
+
+      if (savedSessionId) {
+        // Restore session and messages
+        const savedMessages = localStorage.getItem(`${STORAGE_KEY_PREFIX}${savedSessionId}`);
+        if (savedMessages) {
+          const restored = deserializeMessages(savedMessages);
+          if (restored.length > 0) {
+            setSessionId(savedSessionId);
+            setMessages(restored);
+            return; // Don't create a new session
+          }
+        }
+      }
+
+      // No saved session, create a new one
       setIsInitializing(true);
       createTestSession({
         locationId,
@@ -51,6 +97,8 @@ export function useChat({
       })
         .then((session) => {
           setSessionId(session.session_id);
+          // Save session ID for this location
+          localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
           setIsInitializing(false);
         })
         .catch((err) => {
@@ -59,6 +107,13 @@ export function useChat({
         });
     }
   }, [testMode, sessionId, locationId, userName, userEmail, isInitializing]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (sessionId && messages.length > 0) {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${sessionId}`, serializeMessages(messages));
+    }
+  }, [sessionId, messages]);
 
   const sendUserMessage = useCallback(
     async (content: string) => {
@@ -169,11 +224,56 @@ export function useChat({
       setMessages([]);
       setError(null);
       setLastDebug(null);
+      // Clear localStorage for this session
+      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to reset session";
       setError(errorMessage);
     }
   }, [testMode, sessionId]);
+
+  // Start a completely new chat - deletes old session and creates fresh one
+  const startNewChat = useCallback(async () => {
+    if (!testMode || !locationId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Clean up old session if exists
+      if (sessionId) {
+        // Clear localStorage for old session
+        localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+
+        // Try to end old session on backend (best effort)
+        try {
+          await resetTestSession(sessionId);
+        } catch {
+          // Ignore errors ending old session
+        }
+      }
+
+      // Clear current state
+      setMessages([]);
+      setLastDebug(null);
+      setSessionId(null);
+
+      // Create new session
+      const session = await createTestSession({
+        locationId,
+        testContactName: userName || "Test User",
+        userEmail,
+      });
+
+      setSessionId(session.session_id);
+      localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to start new chat";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [testMode, locationId, sessionId, userName, userEmail]);
 
   return {
     messages,
@@ -184,5 +284,6 @@ export function useChat({
     sendUserMessage,
     clearMessages,
     resetSession,
+    startNewChat,
   };
 }

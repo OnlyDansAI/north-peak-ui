@@ -9,6 +9,8 @@ interface ChatHeaderProps {
   status?: "online" | "offline" | "connecting";
   className?: string;
   onReset?: () => void;
+  onNewChat?: () => void;
+  onReport?: () => void;
   showSettings?: boolean;
 }
 
@@ -18,6 +20,8 @@ export function ChatHeader({
   status = "online",
   className,
   onReset,
+  onNewChat,
+  onReport,
   showSettings = true,
 }: ChatHeaderProps) {
   return (
@@ -39,6 +43,53 @@ export function ChatHeader({
           <p className="text-sm text-muted-foreground truncate">{subtitle}</p>
         )}
       </div>
+
+      {/* New Chat button */}
+      {onNewChat && (
+        <button
+          onClick={onNewChat}
+          className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex items-center gap-1"
+          title="Start new chat (deletes current conversation)"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          <span className="hidden sm:inline">New</span>
+        </button>
+      )}
+
+      {/* Report Issue button */}
+      {onReport && (
+        <button
+          onClick={onReport}
+          className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+          title="Report an issue with this conversation"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Reset button (only in test mode) */}
       {onReset && (

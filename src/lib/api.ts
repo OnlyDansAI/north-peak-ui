@@ -267,3 +267,328 @@ export async function getLocationCalendars(
 
   return response.json();
 }
+
+// ==========================================
+// ORG SETUP API (Super Admin Only)
+// ==========================================
+
+export interface Product {
+  name: string;
+  description?: string;
+}
+
+export interface OrgSettings {
+  id: string;
+  name: string;
+  industry: string | null;
+  default_timezone: string | null;
+  products: Product[];
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrgRoute {
+  id: string;
+  organization_id: string;
+  route_name: string;
+  description: string | null;
+  is_entry_point: boolean;
+  system_prompt: string | null;
+  goals: Record<string, unknown>;
+  required_fields: unknown[];
+  tools_enabled: string[];
+  tool_config: Record<string, unknown>;
+  event_prompts: Record<string, unknown>;
+  drip_config: Record<string, unknown> | null;
+  route_conditions: unknown[];
+  confidence_threshold: number;
+  max_turns: number;
+  is_active: boolean;
+  priority: number;
+  source?: "org" | "agent";
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface OrgRoutesResponse {
+  organization_id: string;
+  org_routes: OrgRoute[];
+  agent_routes: OrgRoute[];
+  all_routes: OrgRoute[];
+}
+
+export interface AvailableTool {
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface Industry {
+  value: string;
+  label: string;
+}
+
+/**
+ * Get organization settings (super admin only).
+ */
+export async function getOrgSettings(orgId: string, userEmail: string): Promise<OrgSettings> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update organization settings (super admin only).
+ */
+export async function updateOrgSettings(
+  orgId: string,
+  userEmail: string,
+  settings: { name?: string; industry?: string; default_timezone?: string }
+): Promise<OrgSettings> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(settings),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get products for an organization.
+ */
+export async function getOrgProducts(orgId: string, userEmail: string): Promise<Product[]> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/products`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Add a product to an organization.
+ */
+export async function addOrgProduct(
+  orgId: string,
+  userEmail: string,
+  product: Product
+): Promise<{ status: string; index: number; product: Product }> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/products`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(product),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update a product by index.
+ */
+export async function updateOrgProduct(
+  orgId: string,
+  userEmail: string,
+  index: number,
+  product: Product
+): Promise<{ status: string; index: number; product: Product }> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/products/${index}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(product),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Delete a product by index.
+ */
+export async function deleteOrgProduct(
+  orgId: string,
+  userEmail: string,
+  index: number
+): Promise<void> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/products/${index}`, {
+    method: "DELETE",
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+}
+
+/**
+ * Get routes for an organization.
+ */
+export async function getOrgRoutes(
+  orgId: string,
+  userEmail: string,
+  includeAgentRoutes = true
+): Promise<OrgRoutesResponse> {
+  const params = new URLSearchParams({ include_agent_routes: String(includeAgentRoutes) });
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/routes?${params}`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a new org route.
+ */
+export async function createOrgRoute(
+  orgId: string,
+  userEmail: string,
+  route: Partial<OrgRoute>
+): Promise<OrgRoute> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/routes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(route),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update an org route.
+ */
+export async function updateOrgRoute(
+  orgId: string,
+  userEmail: string,
+  routeId: string,
+  route: Partial<OrgRoute>
+): Promise<OrgRoute> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/routes/${routeId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(route),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Delete an org route.
+ */
+export async function deleteOrgRoute(
+  orgId: string,
+  userEmail: string,
+  routeId: string
+): Promise<void> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/routes/${routeId}`, {
+    method: "DELETE",
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+}
+
+/**
+ * Get available tools for routes.
+ */
+export async function getAvailableTools(orgId: string, userEmail: string): Promise<AvailableTool[]> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/available-tools`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get list of supported industries.
+ */
+export async function getIndustries(orgId: string, userEmail: string): Promise<Industry[]> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/industries`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}

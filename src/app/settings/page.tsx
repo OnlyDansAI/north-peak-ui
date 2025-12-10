@@ -34,7 +34,6 @@ function SettingsPageContent() {
   const [formData, setFormData] = useState({
     assistant_name: "",
     business_name: "",
-    business_type: "",
     calendar_id: "",
     timezone: "",
   });
@@ -122,7 +121,6 @@ function SettingsPageContent() {
         setFormData({
           assistant_name: settingsData.assistant_name || "",
           business_name: settingsData.business_name || "",
-          business_type: settingsData.business_type || "",
           calendar_id: settingsData.calendar_id || "",
           timezone: settingsData.timezone || "",
         });
@@ -148,7 +146,6 @@ function SettingsPageContent() {
       const updated = await updateLocationSettings(locationId, {
         assistant_name: formData.assistant_name || undefined,
         business_name: formData.business_name || undefined,
-        business_type: formData.business_type || undefined,
         calendar_id: formData.calendar_id || undefined,
         timezone: formData.timezone || undefined,
       });
@@ -272,26 +269,6 @@ function SettingsPageContent() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="business_type">
-                Business Type
-              </label>
-              <Select
-                id="business_type"
-                value={formData.business_type}
-                onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
-              >
-                <option value="">Select type...</option>
-                <option value="insurance">Insurance</option>
-                <option value="dental">Dental</option>
-                <option value="medical">Medical</option>
-                <option value="fitness">Fitness</option>
-                <option value="real_estate">Real Estate</option>
-                <option value="legal">Legal</option>
-                <option value="financial">Financial Services</option>
-                <option value="other">Other</option>
-              </Select>
-            </div>
           </div>
 
           {/* Calendar Settings */}
