@@ -7,12 +7,20 @@ export default function Home() {
       <p className="text-muted-foreground mb-8">
         AI-Powered Conversation Assistant
       </p>
-      <Link
-        href="/chat"
-        className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:opacity-90 transition-opacity"
-      >
-        Open Chat Demo
-      </Link>
+      <div className="flex gap-4">
+        <Link
+          href="/chat"
+          className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:opacity-90 transition-opacity"
+        >
+          Open Chat
+        </Link>
+        <Link
+          href="/settings"
+          className="border border-input bg-background px-6 py-3 rounded-lg hover:bg-accent transition-colors"
+        >
+          Settings
+        </Link>
+      </div>
     </main>
   );
 }

@@ -164,3 +164,106 @@ export async function endTestSession(sessionId: string): Promise<void> {
     throw new Error(error.detail || `API error: ${response.status}`);
   }
 }
+
+/**
+ * Undo the last message exchange in a test session.
+ */
+export async function undoLastMessage(sessionId: string): Promise<{ messages_removed: number }> {
+  const response = await fetch(`${API_URL}/chat/session/${sessionId}/undo`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// ==========================================
+// LOCATION SETTINGS API
+// ==========================================
+
+export interface LocationSettings {
+  location_id: string;
+  crm_type: string;
+  crm_location_id: string;
+  status: string;
+  ai_enabled: boolean;
+  has_tokens: boolean;
+  calendar_id: string | null;
+  timezone: string | null;
+  assistant_name: string | null;
+  assistant_persona: string | null;
+  business_name: string | null;
+  business_type: string | null;
+}
+
+export interface Calendar {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface UpdateSettingsRequest {
+  assistant_name?: string;
+  assistant_persona?: string;
+  business_name?: string;
+  business_type?: string;
+  calendar_id?: string;
+  timezone?: string;
+}
+
+/**
+ * Get location status and settings.
+ */
+export async function getLocationSettings(locationId: string): Promise<LocationSettings> {
+  const response = await fetch(`${API_URL}/locations/${locationId}`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update location settings.
+ */
+export async function updateLocationSettings(
+  locationId: string,
+  settings: UpdateSettingsRequest
+): Promise<LocationSettings> {
+  const response = await fetch(`${API_URL}/locations/${locationId}/settings`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get available calendars for a location.
+ */
+export async function getLocationCalendars(
+  locationId: string
+): Promise<{ location_id: string; calendars: Calendar[] }> {
+  const response = await fetch(`${API_URL}/locations/${locationId}/calendars`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
