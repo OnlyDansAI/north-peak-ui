@@ -76,16 +76,18 @@ export function useChat({
       const savedSessionId = localStorage.getItem(`${STORAGE_SESSION_KEY}_${locationId}`);
 
       if (savedSessionId) {
-        // Restore session and messages
+        // Restore session ID (even if no messages yet)
+        setSessionId(savedSessionId);
+
+        // Try to restore messages too
         const savedMessages = localStorage.getItem(`${STORAGE_KEY_PREFIX}${savedSessionId}`);
         if (savedMessages) {
           const restored = deserializeMessages(savedMessages);
           if (restored.length > 0) {
-            setSessionId(savedSessionId);
             setMessages(restored);
-            return; // Don't create a new session
           }
         }
+        return; // Don't create a new session - use existing one
       }
 
       // No saved session, create a new one
