@@ -153,7 +153,8 @@ function SettingsPageContent() {
         timezone: formData.timezone || undefined,
       });
 
-      setSettings(updated as unknown as LocationSettings);
+      // Merge response with existing settings to preserve fields not in response
+      setSettings((prev) => prev ? { ...prev, ...updated } : updated as unknown as LocationSettings);
       setSuccess("Settings saved successfully!");
 
       // Clear success after 3 seconds
