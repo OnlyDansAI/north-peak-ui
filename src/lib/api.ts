@@ -199,6 +199,8 @@ export interface LocationSettings {
   assistant_persona: string | null;
   business_name: string | null;
   business_type: string | null;
+  business_email: string | null;
+  location_owner_email: string | null;
   // Legacy aliases
   assistant_name: string | null;
   agent_name: string | null;
@@ -212,9 +214,12 @@ export interface Calendar {
 
 export interface UpdateSettingsRequest {
   assistant_name?: string;
+  human_agent_name?: string;
   assistant_persona?: string;
   business_name?: string;
   business_type?: string;
+  business_email?: string;
+  location_owner_email?: string;
   calendar_id?: string;
   timezone?: string;
 }

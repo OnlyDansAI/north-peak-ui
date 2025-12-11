@@ -24,6 +24,8 @@ interface LocationFormData {
   ai_agent_name: string;
   human_agent_name: string;
   business_name: string;
+  business_email: string;
+  location_owner_email: string;
   calendar_id: string;
   timezone: string;
 }
@@ -46,6 +48,8 @@ export function LocationSidebar({
     ai_agent_name: "",
     human_agent_name: "",
     business_name: "",
+    business_email: "",
+    location_owner_email: "",
     calendar_id: "",
     timezone: "",
   });
@@ -68,6 +72,8 @@ export function LocationSidebar({
         ai_agent_name: settings.ai_agent_name || "",
         human_agent_name: settings.human_agent_name || "",
         business_name: settings.business_name || "",
+        business_email: settings.business_email || "",
+        location_owner_email: settings.location_owner_email || "",
         calendar_id: settings.calendar_id || "",
         timezone: settings.timezone || "",
       };
@@ -99,6 +105,8 @@ export function LocationSidebar({
     formData.ai_agent_name !== originalData.ai_agent_name ||
     formData.human_agent_name !== originalData.human_agent_name ||
     formData.business_name !== originalData.business_name ||
+    formData.business_email !== originalData.business_email ||
+    formData.location_owner_email !== originalData.location_owner_email ||
     formData.calendar_id !== originalData.calendar_id ||
     formData.timezone !== originalData.timezone
   );
@@ -113,7 +121,10 @@ export function LocationSidebar({
     try {
       await updateLocationSettings(locationId, {
         assistant_name: formData.ai_agent_name || undefined,
+        human_agent_name: formData.human_agent_name || undefined,
         business_name: formData.business_name || undefined,
+        business_email: formData.business_email || undefined,
+        location_owner_email: formData.location_owner_email || undefined,
         calendar_id: formData.calendar_id || undefined,
         timezone: formData.timezone || undefined,
       });
@@ -294,6 +305,34 @@ function SettingsView({
             placeholder="e.g., North Peak Insurance"
             className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Business Email</label>
+          <input
+            type="email"
+            value={formData.business_email}
+            onChange={(e) => setFormData({ ...formData, business_email: e.target.value })}
+            placeholder="e.g., info@northpeak.com"
+            className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-muted-foreground">
+            General business contact email
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Location Owner Email</label>
+          <input
+            type="email"
+            value={formData.location_owner_email}
+            onChange={(e) => setFormData({ ...formData, location_owner_email: e.target.value })}
+            placeholder="e.g., owner@northpeak.com"
+            className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-muted-foreground">
+            Maps to GHL: {"{{location_owner.email}}"}
+          </p>
         </div>
       </div>
 
