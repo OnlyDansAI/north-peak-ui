@@ -35,6 +35,7 @@ import {
   type AvailableTool,
   type Industry,
 } from "@/lib/api";
+import { RouteList } from "@/components/settings";
 import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 
 // Super admin emails
@@ -115,17 +116,7 @@ function SettingsPageContent() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: "", description: "" });
 
-  // Route editing state
-  const [editingRoute, setEditingRoute] = useState<OrgRoute | null>(null);
-  const [newRoute, setNewRoute] = useState({
-    route_name: "",
-    description: "",
-    system_prompt: "",
-    tools_enabled: [] as string[],
-    confidence_threshold: 0.7,
-    priority: 100,
-    is_entry_point: true,
-  });
+  // Route editing state - now handled by RouteList component
 
   // Initialize - resolve location ID and get user email via SSO
   useEffect(() => {
@@ -459,45 +450,23 @@ function SettingsPageContent() {
     }
   };
 
-  // Route handlers
-  const handleAddRoute = async () => {
-    if (!orgId || !userEmail || !newRoute.route_name) return;
-    try {
-      const route = await createOrgRoute(orgId, userEmail, newRoute);
-      setRoutes([...routes, route]);
-      setNewRoute({
-        route_name: "",
-        description: "",
-        system_prompt: "",
-        tools_enabled: [],
-        confidence_threshold: 0.7,
-        priority: 100,
-        is_entry_point: true,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add route");
-    }
+  // Route handlers - used by RouteList component
+  const handleCreateRoute = async (routeData: Partial<OrgRoute>) => {
+    if (!orgId || !userEmail) return;
+    const route = await createOrgRoute(orgId, userEmail, routeData);
+    setRoutes([...routes, route]);
   };
 
   const handleUpdateRoute = async (route: OrgRoute) => {
     if (!orgId || !userEmail) return;
-    try {
-      const updated = await updateOrgRoute(orgId, userEmail, route.id, route);
-      setRoutes(routes.map(r => r.id === route.id ? updated : r));
-      setEditingRoute(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update route");
-    }
+    const updated = await updateOrgRoute(orgId, userEmail, route.id, route);
+    setRoutes(routes.map(r => r.id === route.id ? updated : r));
   };
 
   const handleDeleteRoute = async (routeId: string) => {
-    if (!orgId || !userEmail || !confirm("Delete this route?")) return;
-    try {
-      await deleteOrgRoute(orgId, userEmail, routeId);
-      setRoutes(routes.filter(r => r.id !== routeId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete route");
-    }
+    if (!orgId || !userEmail) return;
+    await deleteOrgRoute(orgId, userEmail, routeId);
+    setRoutes(routes.filter(r => r.id !== routeId));
   };
 
   if (isLoading) {
@@ -931,114 +900,13 @@ function SettingsPageContent() {
           {/* Routes Tab (Super Admin Only) */}
           {isSuperAdmin && orgId && (
             <TabsContent value="routes">
-              <Card>
-                <CardHeader>
-                  <CardTitle>AI Routes</CardTitle>
-                  <CardDescription>
-                    Configure AI conversation routes with custom prompts and tools.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Add Route */}
-                  <div className="space-y-2 p-4 border rounded">
-                    <h3 className="font-medium">Add New Route</h3>
-                    <div className="grid gap-2">
-                      <Input
-                        placeholder="Route name (e.g., booking, support)"
-                        value={newRoute.route_name}
-                        onChange={(e) => setNewRoute({ ...newRoute, route_name: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Description"
-                        value={newRoute.description}
-                        onChange={(e) => setNewRoute({ ...newRoute, description: e.target.value })}
-                      />
-                      <Textarea
-                        placeholder="System prompt (instructions for the AI)"
-                        value={newRoute.system_prompt}
-                        onChange={(e) => setNewRoute({ ...newRoute, system_prompt: e.target.value })}
-                        rows={3}
-                      />
-                      <div className="flex gap-2 items-center">
-                        <label className="text-sm">Confidence:</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          className="w-20"
-                          value={newRoute.confidence_threshold}
-                          onChange={(e) => setNewRoute({ ...newRoute, confidence_threshold: parseFloat(e.target.value) })}
-                        />
-                        <label className="text-sm ml-4">Priority:</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          className="w-20"
-                          value={newRoute.priority}
-                          onChange={(e) => setNewRoute({ ...newRoute, priority: parseInt(e.target.value) })}
-                        />
-                      </div>
-                      <Button onClick={handleAddRoute} disabled={!newRoute.route_name}>Add Route</Button>
-                    </div>
-                  </div>
-
-                  {/* Route List */}
-                  <div className="space-y-2">
-                    {routes.map((route) => (
-                      <div key={route.id} className="p-4 border rounded space-y-2">
-                        {editingRoute?.id === route.id ? (
-                          <>
-                            <Input
-                              value={editingRoute.route_name}
-                              onChange={(e) => setEditingRoute({ ...editingRoute, route_name: e.target.value })}
-                            />
-                            <Input
-                              value={editingRoute.description || ""}
-                              onChange={(e) => setEditingRoute({ ...editingRoute, description: e.target.value })}
-                            />
-                            <Textarea
-                              value={editingRoute.system_prompt || ""}
-                              onChange={(e) => setEditingRoute({ ...editingRoute, system_prompt: e.target.value })}
-                              rows={3}
-                            />
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={() => handleUpdateRoute(editingRoute)}>Save</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingRoute(null)}>Cancel</Button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <span className="font-medium">{route.route_name}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  (confidence: {route.confidence_threshold}, priority: {route.priority})
-                                </span>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="ghost" onClick={() => setEditingRoute(route)}>Edit</Button>
-                                <Button size="sm" variant="ghost" onClick={() => handleDeleteRoute(route.id)}>Delete</Button>
-                              </div>
-                            </div>
-                            {route.description && (
-                              <p className="text-sm text-muted-foreground">{route.description}</p>
-                            )}
-                            {route.system_prompt && (
-                              <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
-                                {route.system_prompt}
-                              </pre>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                    {routes.length === 0 && (
-                      <p className="text-muted-foreground text-sm">No routes defined yet.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              <RouteList
+                routes={routes}
+                availableTools={availableTools}
+                onCreateRoute={handleCreateRoute}
+                onUpdateRoute={handleUpdateRoute}
+                onDeleteRoute={handleDeleteRoute}
+              />
             </TabsContent>
           )}
         </Tabs>
