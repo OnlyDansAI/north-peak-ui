@@ -86,4 +86,7 @@ export interface ChatContext {
   // Test session mode
   testMode?: boolean;
   sessionId?: string;
+  // For super admin features
+  orgId?: string;
+  userEmail?: string;
 }

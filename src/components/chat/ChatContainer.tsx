@@ -101,6 +101,8 @@ export function ChatContainer({ context }: ChatContainerProps) {
       {context.testMode && (
         <LocationSidebar
           locationId={context.locationId}
+          orgId={context.orgId}
+          userEmail={context.userEmail}
           debug={lastDebug}
           messages={messages}
           sessionId={sessionId}

@@ -77,7 +77,9 @@ function SettingsPageContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("location");
+  // Read initial tab from URL param (for deep linking from chat)
+  const initialTab = searchParams.get("tab") || "location";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Location form state - ALL fields including GHL sync
   const [formData, setFormData] = useState({
@@ -525,8 +527,8 @@ function SettingsPageContent() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">North Peak AI Settings</h1>
           <nav className="flex gap-2 items-center">
-            <Link href="/chat">
-              <Button variant="ghost" size="sm">Chat</Button>
+            <Link href={locationId ? `/chat?location_id=${locationId}` : "/chat"}>
+              <Button variant="ghost" size="sm">← Back to Chat</Button>
             </Link>
             {userEmail && (
               <span className="text-xs text-muted-foreground">

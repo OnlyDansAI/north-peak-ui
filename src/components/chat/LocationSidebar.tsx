@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   getLocationSettings,
@@ -11,8 +12,15 @@ import {
 } from "@/lib/api";
 import type { ChatMessage, DebugInfo } from "@/types";
 
+// Super admin emails - same as settings page
+const SUPER_ADMIN_EMAILS = ["dan@onlydans.ai", "danny@onlydans.ai"];
+// Demo org ID - anyone on this org is treated as super admin
+const DEMO_ORG_ID = "40094796-cd22-4f6c-92f2-399bcc228608";
+
 interface LocationSidebarProps {
   locationId: string;
+  orgId?: string;
+  userEmail?: string;
   // Debug props
   debug: DebugInfo | null;
   messages: ChatMessage[];
@@ -39,10 +47,15 @@ interface LocationFormData {
 
 export function LocationSidebar({
   locationId,
+  orgId,
+  userEmail,
   debug,
   messages,
   sessionId,
 }: LocationSidebarProps) {
+  // Super admin check - email match OR demo org
+  const isDemoOrg = orgId === DEMO_ORG_ID;
+  const isSuperAdmin = isDemoOrg || (userEmail ? SUPER_ADMIN_EMAILS.includes(userEmail.toLowerCase()) : false);
   const [viewMode, setViewMode] = useState<ViewMode>("settings");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -246,9 +259,9 @@ export function LocationSidebar({
         )}
       </div>
 
-      {/* Footer with save button (settings mode only) */}
+      {/* Footer with save button and org settings link */}
       {viewMode === "settings" && (
-        <div className="p-3 border-t">
+        <div className="p-3 border-t space-y-2">
           <button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
@@ -261,6 +274,16 @@ export function LocationSidebar({
           >
             {isSaving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
           </button>
+
+          {/* Org Settings link - super admins only */}
+          {isSuperAdmin && orgId && (
+            <Link
+              href={`/settings?location_id=${locationId}&tab=organization`}
+              className="block w-full py-2 text-sm font-medium text-center rounded-md border border-primary/20 text-primary hover:bg-primary/10 transition-colors"
+            >
+              Org Settings →
+            </Link>
+          )}
         </div>
       )}
     </div>

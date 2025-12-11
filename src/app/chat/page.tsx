@@ -31,10 +31,20 @@ function ChatPageContent() {
       // PRIORITY 1: If we have our UUIDs directly, use them
       if (locationId && contactId) {
         setAuthStatus("using URL params (UUIDs)");
-        setContext({
-          locationId,
-          contactId,
-        });
+        // Still resolve to get orgId
+        try {
+          const resolved = await resolveIds({ location_id: locationId });
+          setContext({
+            locationId,
+            contactId,
+            orgId: resolved.location?.organization_id || undefined,
+          });
+        } catch {
+          setContext({
+            locationId,
+            contactId,
+          });
+        }
         setIsLoading(false);
         return;
       }
@@ -56,6 +66,7 @@ function ChatPageContent() {
               contactName: [resolved.contact.first_name, resolved.contact.last_name]
                 .filter(Boolean)
                 .join(" ") || undefined,
+              orgId: resolved.location.organization_id || undefined,
             });
             setIsLoading(false);
             return;
@@ -99,6 +110,8 @@ function ChatPageContent() {
                 locationName: resolved.location.name,
                 contactName: userData.userName || userData.email,
                 testMode: true,
+                orgId: resolved.location.organization_id || undefined,
+                userEmail: userData.email || undefined,
               });
               setAuthStatus(`authenticated as ${userData.userName || userData.email} (test mode)`);
               setIsLoading(false);
@@ -129,6 +142,7 @@ function ChatPageContent() {
             locationName: resolved.location.name || "Demo Location",
             contactName: "Demo User",
             testMode: true,
+            orgId: resolved.location.organization_id || undefined,
           });
           setAuthStatus("test mode");
         } else {
