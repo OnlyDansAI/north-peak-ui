@@ -193,10 +193,15 @@ export interface LocationSettings {
   has_tokens: boolean;
   calendar_id: string | null;
   timezone: string | null;
-  assistant_name: string | null;
+  // New naming convention
+  ai_agent_name: string | null;
+  human_agent_name: string | null;
   assistant_persona: string | null;
   business_name: string | null;
   business_type: string | null;
+  // Legacy aliases
+  assistant_name: string | null;
+  agent_name: string | null;
 }
 
 export interface Calendar {

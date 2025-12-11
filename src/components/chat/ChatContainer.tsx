@@ -5,7 +5,7 @@ import { useChat } from "@/hooks/useChat";
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
-import { DebugDrawer } from "./DebugDrawer";
+import { LocationSidebar } from "./LocationSidebar";
 import type { ChatContext, ChatMessage, DebugInfo } from "@/types";
 
 interface ChatContainerProps {
@@ -13,7 +13,6 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({ context }: ChatContainerProps) {
-  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
   const {
@@ -51,62 +50,62 @@ export function ChatContainer({ context }: ChatContainerProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <ChatHeader
-        title={context.locationName || "AI Assistant"}
-        subtitle={
-          context.testMode
-            ? `Test Session${sessionId ? ` (${sessionId.slice(0, 8)}...)` : ""}`
-            : context.contactName || "Chat Assistant"
-        }
-        status={error ? "offline" : isLoading ? "connecting" : "online"}
-        onReset={context.testMode ? handleReset : undefined}
-        onNewChat={context.testMode ? handleNewChat : undefined}
-        onReport={context.testMode ? handleReport : undefined}
-        onToggleDebug={context.testMode ? () => setDebugDrawerOpen(!debugDrawerOpen) : undefined}
-        debugOpen={debugDrawerOpen}
-      />
-
-      {/* Report Modal - placeholder for now */}
-      {showReportModal && (
-        <ReportModal
-          sessionId={sessionId}
-          messages={messages}
-          lastDebug={lastDebug}
-          onClose={() => setShowReportModal(false)}
+    <div className="flex h-full bg-background">
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <ChatHeader
+          title={context.locationName || "AI Assistant"}
+          subtitle={
+            context.testMode
+              ? `Test Session${sessionId ? ` (${sessionId.slice(0, 8)}...)` : ""}`
+              : context.contactName || "Chat Assistant"
+          }
+          status={error ? "offline" : isLoading ? "connecting" : "online"}
+          onReset={context.testMode ? handleReset : undefined}
+          onNewChat={context.testMode ? handleNewChat : undefined}
+          onReport={context.testMode ? handleReport : undefined}
         />
-      )}
 
-      <MessageList messages={messages} />
+        {/* Report Modal - placeholder for now */}
+        {showReportModal && (
+          <ReportModal
+            sessionId={sessionId}
+            messages={messages}
+            lastDebug={lastDebug}
+            onClose={() => setShowReportModal(false)}
+          />
+        )}
 
-      {/* Debug Drawer - only in test mode */}
+        <MessageList messages={messages} />
+
+        {error && (
+          <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm">
+            {error}
+          </div>
+        )}
+
+        <ChatInput
+          onSend={sendUserMessage}
+          disabled={isLoading || (!context.testMode && !context.contactId)}
+          placeholder={
+            isLoading
+              ? "Waiting for response..."
+              : !sessionId && context.testMode
+              ? "Initializing test session..."
+              : "Type a message..."
+          }
+        />
+      </div>
+
+      {/* Right sidebar - always visible in test mode */}
       {context.testMode && (
-        <DebugDrawer
-          isOpen={debugDrawerOpen}
-          onClose={() => setDebugDrawerOpen(false)}
+        <LocationSidebar
+          locationId={context.locationId}
           debug={lastDebug}
           messages={messages}
           sessionId={sessionId}
         />
       )}
-
-      {error && (
-        <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
-      )}
-
-      <ChatInput
-        onSend={sendUserMessage}
-        disabled={isLoading || (!context.testMode && !context.contactId)}
-        placeholder={
-          isLoading
-            ? "Waiting for response..."
-            : !sessionId && context.testMode
-            ? "Initializing test session..."
-            : "Type a message..."
-        }
-      />
     </div>
   );
 }
