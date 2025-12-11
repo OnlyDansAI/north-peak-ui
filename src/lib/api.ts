@@ -197,10 +197,15 @@ export interface LocationSettings {
   ai_agent_name: string | null;
   human_agent_name: string | null;
   assistant_persona: string | null;
+  // Business/location info - maps to GHL {{location.*}} variables
   business_name: string | null;
   business_type: string | null;
-  business_email: string | null;
-  location_owner_email: string | null;
+  business_email: string | null;  // {{location.email}}
+  business_phone: string | null;  // {{location.phone}}
+  // Location owner info - maps to GHL {{location_owner.*}} variables
+  location_owner_name: string | null;  // {{location_owner.first_name}} {{location_owner.last_name}}
+  location_owner_email: string | null;  // {{location_owner.email}}
+  location_owner_phone: string | null;  // {{location_owner.phone}}
   // Legacy aliases
   assistant_name: string | null;
   agent_name: string | null;
@@ -216,10 +221,16 @@ export interface UpdateSettingsRequest {
   assistant_name?: string;
   human_agent_name?: string;
   assistant_persona?: string;
+  // Business/location info - syncs to GHL {{location.*}} variables
   business_name?: string;
   business_type?: string;
   business_email?: string;
+  business_phone?: string;
+  // Location owner info - syncs to GHL {{location_owner.*}} variables
+  location_owner_name?: string;
   location_owner_email?: string;
+  location_owner_phone?: string;
+  // Other settings
   calendar_id?: string;
   timezone?: string;
 }
@@ -239,18 +250,49 @@ export async function getLocationSettings(locationId: string): Promise<LocationS
 }
 
 /**
- * Update location settings.
+ * Update location settings and push to GHL (2-way sync).
  */
 export async function updateLocationSettings(
   locationId: string,
   settings: UpdateSettingsRequest
-): Promise<LocationSettings> {
+): Promise<LocationSettings & { ghl_sync?: "synced" | "failed" | null }> {
   const response = await fetch(`${API_URL}/locations/${locationId}/settings`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(settings),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Sync location settings from GHL.
+ * Pulls the latest data from GHL and updates our database.
+ */
+export async function syncLocationFromGHL(locationId: string): Promise<{
+  status: string;
+  location_id: string;
+  source: string;
+  synced_data: {
+    business_name: string | null;
+    business_email: string | null;
+    business_phone: string | null;
+    timezone: string | null;
+    location_owner_name: string | null;
+    location_owner_email: string | null;
+    location_owner_phone: string | null;
+  };
+  config: LocationSettings;
+}> {
+  const response = await fetch(`${API_URL}/locations/${locationId}/sync-from-ghl`, {
+    method: "POST",
   });
 
   if (!response.ok) {

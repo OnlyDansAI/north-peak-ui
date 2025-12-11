@@ -6,6 +6,7 @@ import {
   getLocationSettings,
   updateLocationSettings,
   getLocationCalendars,
+  syncLocationFromGHL,
   type Calendar,
 } from "@/lib/api";
 import type { ChatMessage, DebugInfo } from "@/types";
@@ -23,9 +24,15 @@ type ViewMode = "settings" | "debug";
 interface LocationFormData {
   ai_agent_name: string;
   human_agent_name: string;
+  // Business/location info - {{location.*}}
   business_name: string;
   business_email: string;
+  business_phone: string;
+  // Location owner info - {{location_owner.*}}
+  location_owner_name: string;
   location_owner_email: string;
+  location_owner_phone: string;
+  // Other settings
   calendar_id: string;
   timezone: string;
 }
@@ -39,6 +46,7 @@ export function LocationSidebar({
   const [viewMode, setViewMode] = useState<ViewMode>("settings");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -49,7 +57,10 @@ export function LocationSidebar({
     human_agent_name: "",
     business_name: "",
     business_email: "",
+    business_phone: "",
+    location_owner_name: "",
     location_owner_email: "",
+    location_owner_phone: "",
     calendar_id: "",
     timezone: "",
   });
@@ -73,7 +84,10 @@ export function LocationSidebar({
         human_agent_name: settings.human_agent_name || "",
         business_name: settings.business_name || "",
         business_email: settings.business_email || "",
+        business_phone: settings.business_phone || "",
+        location_owner_name: settings.location_owner_name || "",
         location_owner_email: settings.location_owner_email || "",
+        location_owner_phone: settings.location_owner_phone || "",
         calendar_id: settings.calendar_id || "",
         timezone: settings.timezone || "",
       };
@@ -106,7 +120,10 @@ export function LocationSidebar({
     formData.human_agent_name !== originalData.human_agent_name ||
     formData.business_name !== originalData.business_name ||
     formData.business_email !== originalData.business_email ||
+    formData.business_phone !== originalData.business_phone ||
+    formData.location_owner_name !== originalData.location_owner_name ||
     formData.location_owner_email !== originalData.location_owner_email ||
+    formData.location_owner_phone !== originalData.location_owner_phone ||
     formData.calendar_id !== originalData.calendar_id ||
     formData.timezone !== originalData.timezone
   );
@@ -119,22 +136,58 @@ export function LocationSidebar({
     setError(null);
 
     try {
-      await updateLocationSettings(locationId, {
+      const result = await updateLocationSettings(locationId, {
         assistant_name: formData.ai_agent_name || undefined,
         human_agent_name: formData.human_agent_name || undefined,
         business_name: formData.business_name || undefined,
         business_email: formData.business_email || undefined,
+        business_phone: formData.business_phone || undefined,
+        location_owner_name: formData.location_owner_name || undefined,
         location_owner_email: formData.location_owner_email || undefined,
+        location_owner_phone: formData.location_owner_phone || undefined,
         calendar_id: formData.calendar_id || undefined,
         timezone: formData.timezone || undefined,
       });
 
       setOriginalData({ ...formData });
-      setSuccess("Settings saved!");
+      const ghlStatus = result.ghl_sync === "synced" ? " (synced to GHL)" : "";
+      setSuccess(`Settings saved!${ghlStatus}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sync from GHL
+  const handleSyncFromGHL = async () => {
+    if (!locationId) return;
+
+    setIsSyncing(true);
+    setError(null);
+
+    try {
+      const result = await syncLocationFromGHL(locationId);
+
+      // Update form data with synced values
+      const newData: LocationFormData = {
+        ...formData,
+        business_name: result.synced_data.business_name || "",
+        business_email: result.synced_data.business_email || "",
+        business_phone: result.synced_data.business_phone || "",
+        location_owner_name: result.synced_data.location_owner_name || "",
+        location_owner_email: result.synced_data.location_owner_email || "",
+        location_owner_phone: result.synced_data.location_owner_phone || "",
+        timezone: result.synced_data.timezone || formData.timezone,
+      };
+
+      setFormData(newData);
+      setOriginalData(newData);
+      setSuccess("Synced from GHL!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sync from GHL");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -181,6 +234,8 @@ export function LocationSidebar({
             isLoading={isLoading}
             error={error}
             success={success}
+            onSyncFromGHL={handleSyncFromGHL}
+            isSyncing={isSyncing}
           />
         ) : (
           <DebugView
@@ -223,6 +278,8 @@ interface SettingsViewProps {
   isLoading: boolean;
   error: string | null;
   success: string | null;
+  onSyncFromGHL: () => void;
+  isSyncing: boolean;
 }
 
 function SettingsView({
@@ -232,6 +289,8 @@ function SettingsView({
   isLoading,
   error,
   success,
+  onSyncFromGHL,
+  isSyncing,
 }: SettingsViewProps) {
   if (isLoading) {
     return (
@@ -290,11 +349,23 @@ function SettingsView({
         </div>
       </div>
 
-      {/* Business Info Section */}
+      {/* Business Info Section (Location Settings) */}
       <div className="space-y-3 pt-2 border-t">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Business Info
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Business Info
+          </h3>
+          <button
+            onClick={onSyncFromGHL}
+            disabled={isSyncing}
+            className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+          >
+            {isSyncing ? "Syncing..." : "Sync from GHL"}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Maps to GHL {"{{location.*}}"} variables
+        </p>
 
         <div className="space-y-1">
           <label className="text-xs font-medium">Business Name</label>
@@ -316,13 +387,42 @@ function SettingsView({
             placeholder="e.g., info@northpeak.com"
             className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <p className="text-xs text-muted-foreground">
-            General business contact email
-          </p>
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium">Location Owner Email</label>
+          <label className="text-xs font-medium">Business Phone</label>
+          <input
+            type="tel"
+            value={formData.business_phone}
+            onChange={(e) => setFormData({ ...formData, business_phone: e.target.value })}
+            placeholder="e.g., +1 555-123-4567"
+            className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+      </div>
+
+      {/* Location Owner Section */}
+      <div className="space-y-3 pt-2 border-t">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Location Owner
+        </h3>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Maps to GHL {"{{location_owner.*}}"} variables
+        </p>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Owner Name</label>
+          <input
+            type="text"
+            value={formData.location_owner_name}
+            onChange={(e) => setFormData({ ...formData, location_owner_name: e.target.value })}
+            placeholder="e.g., John Smith"
+            className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Owner Email</label>
           <input
             type="email"
             value={formData.location_owner_email}
@@ -330,9 +430,17 @@ function SettingsView({
             placeholder="e.g., owner@northpeak.com"
             className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <p className="text-xs text-muted-foreground">
-            Maps to GHL: {"{{location_owner.email}}"}
-          </p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Owner Phone</label>
+          <input
+            type="tel"
+            value={formData.location_owner_phone}
+            onChange={(e) => setFormData({ ...formData, location_owner_phone: e.target.value })}
+            placeholder="e.g., +1 555-987-6543"
+            className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
       </div>
 
