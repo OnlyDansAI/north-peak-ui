@@ -13,6 +13,7 @@ import {
   getLocationSettings,
   getLocationCalendars,
   updateLocationSettings,
+  syncLocationFromGHL,
   resolveIds,
   getOrgSettings,
   updateOrgSettings,
@@ -42,12 +43,22 @@ const SUPER_ADMIN_EMAILS = ["dan@onlydans.ai", "danny@onlydans.ai"];
 // Fallback GHL location ID for demo/test mode
 const FALLBACK_GHL_LOCATION_ID = "ojKtYYUFbTKUmDCA5KUH";
 
+// Allow super admin override via URL param for development
+// Usage: /settings?admin=true or /settings?email=dan@onlydans.ai
+const DEV_ADMIN_OVERRIDE = process.env.NODE_ENV === "development";
+
 function SettingsPageContent() {
   const searchParams = useSearchParams();
 
   // Auth state
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const isSuperAdmin = userEmail ? SUPER_ADMIN_EMAILS.includes(userEmail.toLowerCase()) : false;
+
+  // Check for admin override via URL params (dev mode or explicit email)
+  const adminOverride = searchParams.get("admin") === "true";
+  const emailOverride = searchParams.get("email");
+  const effectiveEmail = emailOverride || userEmail;
+
+  const isSuperAdmin = adminOverride || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
 
   // Location state
   const [locationId, setLocationId] = useState<string | null>(null);
@@ -69,13 +80,28 @@ function SettingsPageContent() {
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("location");
 
-  // Location form state
+  // Location form state - ALL fields including GHL sync
   const [formData, setFormData] = useState({
+    // AI config
     assistant_name: "",
+    human_agent_name: "",
+    assistant_persona: "",
+    // Business info (2-way sync with GHL)
     business_name: "",
+    business_type: "",
+    business_email: "",
+    business_phone: "",
+    // Location owner info (read-only from GHL)
+    location_owner_name: "",
+    location_owner_email: "",
+    location_owner_phone: "",
+    // Booking
     calendar_id: "",
     timezone: "",
   });
+
+  // Sync state
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Org form state
   const [orgFormData, setOrgFormData] = useState({
@@ -112,6 +138,15 @@ function SettingsPageContent() {
 
       if (urlLocationId) {
         setLocationId(urlLocationId);
+        // Try to get org_id from the location
+        try {
+          const resolved = await resolveIds({ location_id: urlLocationId });
+          if (resolved.location?.organization_id) {
+            setOrgId(resolved.location.organization_id);
+          }
+        } catch {
+          // Continue without org_id
+        }
         // Still try to get user email via SSO
         if (isInGHLIframe()) {
           try {
@@ -188,12 +223,68 @@ function SettingsPageContent() {
         setCalendars(calendarsData.calendars || []);
         // Note: org_id is already set from resolveIds in initialize()
 
-        setFormData({
-          assistant_name: settingsData.assistant_name || "",
-          business_name: settingsData.business_name || "",
-          calendar_id: settingsData.calendar_id || "",
-          timezone: settingsData.timezone || "",
-        });
+        // Check if we need to auto-sync from GHL (first load with empty business data)
+        const needsAutoSync = !settingsData.business_name && !settingsData.location_owner_name;
+
+        if (needsAutoSync) {
+          // Auto-sync from GHL on first load
+          try {
+            const syncResult = await syncLocationFromGHL(locationId!);
+            const synced = syncResult.synced_data;
+            const config = syncResult.config;
+
+            setSettings(config);
+            setFormData({
+              assistant_name: config.ai_agent_name || config.assistant_name || "",
+              human_agent_name: config.human_agent_name || "",
+              assistant_persona: config.assistant_persona || "",
+              business_name: synced.business_name || "",
+              business_type: config.business_type || "",
+              business_email: synced.business_email || "",
+              business_phone: synced.business_phone || "",
+              location_owner_name: synced.location_owner_name || "",
+              location_owner_email: synced.location_owner_email || "",
+              location_owner_phone: synced.location_owner_phone || "",
+              calendar_id: config.calendar_id || "",
+              timezone: synced.timezone || config.timezone || "",
+            });
+          } catch {
+            // If auto-sync fails, just use existing data
+            setFormData({
+              assistant_name: settingsData.ai_agent_name || settingsData.assistant_name || "",
+              human_agent_name: settingsData.human_agent_name || "",
+              assistant_persona: settingsData.assistant_persona || "",
+              business_name: settingsData.business_name || "",
+              business_type: settingsData.business_type || "",
+              business_email: settingsData.business_email || "",
+              business_phone: settingsData.business_phone || "",
+              location_owner_name: settingsData.location_owner_name || "",
+              location_owner_email: settingsData.location_owner_email || "",
+              location_owner_phone: settingsData.location_owner_phone || "",
+              calendar_id: settingsData.calendar_id || "",
+              timezone: settingsData.timezone || "",
+            });
+          }
+        } else {
+          setFormData({
+            // AI config - prefer ai_agent_name over assistant_name
+            assistant_name: settingsData.ai_agent_name || settingsData.assistant_name || "",
+            human_agent_name: settingsData.human_agent_name || "",
+            assistant_persona: settingsData.assistant_persona || "",
+            // Business info (2-way sync with GHL)
+            business_name: settingsData.business_name || "",
+            business_type: settingsData.business_type || "",
+            business_email: settingsData.business_email || "",
+            business_phone: settingsData.business_phone || "",
+            // Location owner info (read-only from GHL)
+            location_owner_name: settingsData.location_owner_name || "",
+            location_owner_email: settingsData.location_owner_email || "",
+            location_owner_phone: settingsData.location_owner_phone || "",
+            // Booking
+            calendar_id: settingsData.calendar_id || "",
+            timezone: settingsData.timezone || "",
+          });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
       } finally {
@@ -204,7 +295,7 @@ function SettingsPageContent() {
     loadLocationData();
   }, [locationId]);
 
-  // Load org data when super admin and orgId is available
+  // Load org data only for super admins
   useEffect(() => {
     if (!isSuperAdmin || !orgId || !userEmail) return;
 
@@ -249,8 +340,17 @@ function SettingsPageContent() {
 
     try {
       const updated = await updateLocationSettings(locationId, {
+        // AI config
         assistant_name: formData.assistant_name || undefined,
+        human_agent_name: formData.human_agent_name || undefined,
+        assistant_persona: formData.assistant_persona || undefined,
+        // Business info (2-way sync with GHL)
         business_name: formData.business_name || undefined,
+        business_type: formData.business_type || undefined,
+        business_email: formData.business_email || undefined,
+        business_phone: formData.business_phone || undefined,
+        // Note: location_owner_* fields are read-only from GHL, don't submit
+        // Booking
         calendar_id: formData.calendar_id || undefined,
         timezone: formData.timezone || undefined,
       });
@@ -262,6 +362,45 @@ function SettingsPageContent() {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sync from GHL handler
+  const handleSyncFromGHL = async () => {
+    if (!locationId) return;
+
+    setIsSyncing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const result = await syncLocationFromGHL(locationId);
+      const synced = result.synced_data;
+      const config = result.config;
+
+      // Update form with synced data
+      setFormData((prev) => ({
+        ...prev,
+        business_name: synced.business_name || prev.business_name,
+        business_email: synced.business_email || prev.business_email,
+        business_phone: synced.business_phone || prev.business_phone,
+        timezone: synced.timezone || prev.timezone,
+        location_owner_name: synced.location_owner_name || prev.location_owner_name,
+        location_owner_email: synced.location_owner_email || prev.location_owner_email,
+        location_owner_phone: synced.location_owner_phone || prev.location_owner_phone,
+        // Also update AI fields from config
+        assistant_name: config.ai_agent_name || config.assistant_name || prev.assistant_name,
+        human_agent_name: config.human_agent_name || prev.human_agent_name,
+        calendar_id: config.calendar_id || prev.calendar_id,
+      }));
+
+      setSettings(config);
+      setSuccess("Synced from GHL successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sync from GHL");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -401,6 +540,18 @@ function SettingsPageContent() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Debug Info - remove in production */}
+        {searchParams.get("debug") === "true" && (
+          <div className="p-4 rounded-lg bg-blue-500/10 text-blue-600 text-xs mb-6 font-mono">
+            <div>userEmail: {userEmail || "null"}</div>
+            <div>effectiveEmail: {effectiveEmail || "null"}</div>
+            <div>isSuperAdmin: {isSuperAdmin ? "true" : "false"}</div>
+            <div>orgId: {orgId || "null"}</div>
+            <div>locationId: {locationId || "null"}</div>
+            <div>isInGHLIframe: {typeof window !== "undefined" && isInGHLIframe() ? "true" : "false"}</div>
+          </div>
+        )}
+
         {/* Status Messages */}
         {error && (
           <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm mb-6">
@@ -448,35 +599,161 @@ function SettingsPageContent() {
                 </div>
               )}
 
-              {/* Assistant Settings */}
+              {/* AI Agent Settings */}
               <div className="space-y-4">
-                <h2 className="text-lg font-medium">Assistant</h2>
+                <h2 className="text-lg font-medium">AI Agent</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="assistant_name">
+                      AI Assistant Name
+                    </label>
+                    <Input
+                      id="assistant_name"
+                      placeholder="e.g., Alex, Sarah"
+                      value={formData.assistant_name}
+                      onChange={(e) => setFormData({ ...formData, assistant_name: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">The name the AI will use when talking to customers</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="human_agent_name">
+                      Human Agent Name
+                    </label>
+                    <Input
+                      id="human_agent_name"
+                      placeholder="e.g., Dan, Support Team"
+                      value={formData.human_agent_name}
+                      onChange={(e) => setFormData({ ...formData, human_agent_name: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">Name used when escalating to a human</p>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="assistant_name">
-                    Assistant Name
+                  <label className="text-sm font-medium" htmlFor="assistant_persona">
+                    Assistant Persona
                   </label>
-                  <Input
-                    id="assistant_name"
-                    placeholder="e.g., Alex, Sarah"
-                    value={formData.assistant_name}
-                    onChange={(e) => setFormData({ ...formData, assistant_name: e.target.value })}
+                  <Textarea
+                    id="assistant_persona"
+                    placeholder="e.g., You are a friendly and helpful insurance advisor..."
+                    value={formData.assistant_persona}
+                    onChange={(e) => setFormData({ ...formData, assistant_persona: e.target.value })}
+                    rows={3}
                   />
+                  <p className="text-xs text-muted-foreground">Custom personality or instructions for the AI</p>
                 </div>
               </div>
 
-              {/* Business Settings */}
+              {/* Business Info - 2-way sync with GHL */}
               <div className="space-y-4">
-                <h2 className="text-lg font-medium">Business</h2>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="business_name">
-                    Business Name
-                  </label>
-                  <Input
-                    id="business_name"
-                    placeholder="e.g., North Peak Life Insurance"
-                    value={formData.business_name}
-                    onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
-                  />
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-medium">Business Information</h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncFromGHL}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? "Syncing..." : "Sync from GHL"}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  These fields sync with GHL. Changes here will update your GHL location.
+                </p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="business_name">
+                      Business Name
+                    </label>
+                    <Input
+                      id="business_name"
+                      placeholder="e.g., North Peak Life Insurance"
+                      value={formData.business_name}
+                      onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="business_type">
+                      Business Type
+                    </label>
+                    <Select
+                      id="business_type"
+                      value={formData.business_type}
+                      onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
+                    >
+                      <option value="">Select type...</option>
+                      <option value="insurance">Insurance</option>
+                      <option value="real_estate">Real Estate</option>
+                      <option value="healthcare">Healthcare</option>
+                      <option value="legal">Legal</option>
+                      <option value="financial">Financial Services</option>
+                      <option value="other">Other</option>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="business_email">
+                      Business Email
+                    </label>
+                    <Input
+                      id="business_email"
+                      type="email"
+                      placeholder="e.g., contact@business.com"
+                      value={formData.business_email}
+                      onChange={(e) => setFormData({ ...formData, business_email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="business_phone">
+                      Business Phone
+                    </label>
+                    <Input
+                      id="business_phone"
+                      type="tel"
+                      placeholder="e.g., (555) 123-4567"
+                      value={formData.business_phone}
+                      onChange={(e) => setFormData({ ...formData, business_phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Owner Info - Read-only from GHL */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-medium">Location Owner</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pulled from GHL user profile. Click "Sync from GHL" to refresh.
+                </p>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Owner Name
+                    </label>
+                    <Input
+                      value={formData.location_owner_name}
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Owner Email
+                    </label>
+                    <Input
+                      value={formData.location_owner_email}
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Owner Phone
+                    </label>
+                    <Input
+                      value={formData.location_owner_phone}
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -531,7 +808,7 @@ function SettingsPageContent() {
             </form>
           </TabsContent>
 
-          {/* Organization Tab (Super Admin Only) */}
+          {/* Organization Tab - Super Admin Only */}
           {isSuperAdmin && orgId && (
             <TabsContent value="organization">
               <form onSubmit={handleOrgSubmit} className="space-y-6 max-w-2xl">
