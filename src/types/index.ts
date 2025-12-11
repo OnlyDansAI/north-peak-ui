@@ -80,15 +80,10 @@ export interface ChatMessage {
 
 export interface ChatContext {
   locationId: string;
-  contactId?: string;  // Optional now - not needed for test sessions
+  contactId?: string;  // Optional - not needed for test sessions
   locationName?: string;
   contactName?: string;
   // Test session mode
   testMode?: boolean;
   sessionId?: string;
-  // Shadow mode - use existing contact (recommended for demos)
-  existingContactId?: string;
-  existingGhlContactId?: string;
-  // Create mode - create real GHL contact
-  createTestContact?: boolean;
 }

@@ -6,9 +6,7 @@ import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { DebugPanel } from "./DebugPanel";
-import { ContactPicker } from "./ContactPicker";
 import type { ChatContext, ChatMessage, DebugInfo } from "@/types";
-import type { TestContact } from "@/lib/api";
 
 interface ChatContainerProps {
   context: ChatContext;
@@ -17,10 +15,6 @@ interface ChatContainerProps {
 export function ChatContainer({ context }: ChatContainerProps) {
   const [debugExpanded, setDebugExpanded] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<TestContact | null>(null);
-
-  // Determine shadow mode from context or selected contact
-  const shadowContactId = context.existingContactId || selectedContact?.contact_id;
 
   const {
     messages,
@@ -35,13 +29,9 @@ export function ChatContainer({ context }: ChatContainerProps) {
     locationId: context.locationId,
     contactId: context.contactId,
     testMode: context.testMode ?? true, // Default to test mode
-    userName: selectedContact?.display_name || context.contactName,
-    userEmail: selectedContact?.email || context.contactName,
-    // Shadow mode - use existing contact
-    existingContactId: shadowContactId,
-    existingGhlContactId: context.existingGhlContactId || selectedContact?.ghl_contact_id || undefined,
-    // Create mode
-    createTestContact: context.createTestContact,
+    userName: context.contactName,
+    // Always create fresh test contacts (no shadow mode)
+    createTestContact: true,
   });
 
   const handleReset = async () => {
@@ -83,17 +73,6 @@ export function ChatContainer({ context }: ChatContainerProps) {
           lastDebug={lastDebug}
           onClose={() => setShowReportModal(false)}
         />
-      )}
-
-      {/* Contact Picker for Shadow Mode - only in test mode */}
-      {context.testMode && (
-        <div className="px-4 py-2 border-b bg-muted/30">
-          <ContactPicker
-            locationId={context.locationId}
-            onSelect={setSelectedContact}
-            selectedContact={selectedContact}
-          />
-        </div>
       )}
 
       <MessageList messages={messages} />

@@ -14,12 +14,8 @@ interface UseChatOptions {
   // Test mode options
   testMode?: boolean;
   sessionId?: string;
-  userEmail?: string;
   userName?: string;
-  // Shadow mode - use existing contact (recommended for demos)
-  existingContactId?: string;
-  existingGhlContactId?: string;
-  // Create mode - create real GHL contact
+  // Always create fresh test contacts (shadow mode removed)
   createTestContact?: boolean;
 }
 
@@ -61,11 +57,8 @@ export function useChat({
   contactId,
   testMode = false,
   sessionId: initialSessionId,
-  userEmail,
   userName,
-  existingContactId,
-  existingGhlContactId,
-  createTestContact = false,
+  createTestContact = true, // Default to creating fresh test contacts
 }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,9 +67,6 @@ export function useChat({
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
   const [isInitializing, setIsInitializing] = useState(false);
   const hasRestoredMessages = useRef(false);
-
-  // Track the contact ID used when session was created
-  const sessionContactRef = useRef<string | null>(null);
 
   // Try to restore existing session from localStorage on mount
   useEffect(() => {
@@ -89,8 +79,6 @@ export function useChat({
       if (savedSessionId) {
         // Restore session ID (even if no messages yet)
         setSessionId(savedSessionId);
-        // Track that we're using an existing session (contact unknown)
-        sessionContactRef.current = localStorage.getItem(`${STORAGE_SESSION_KEY}_${locationId}_contact`) || null;
 
         // Try to restore messages too
         const savedMessages = localStorage.getItem(`${STORAGE_KEY_PREFIX}${savedSessionId}`);
@@ -103,24 +91,16 @@ export function useChat({
         return; // Don't create a new session - use existing one
       }
 
-      // No saved session, create a new one
+      // No saved session, create a new one with fresh test contact
       setIsInitializing(true);
       createTestSession({
         locationId,
         testContactName: userName || "Test User",
-        userEmail,
-        // Shadow mode - use existing contact
-        existingContactId,
-        existingGhlContactId,
-        // Create mode - create real GHL contact
-        createTestContact,
+        createTestContact: true, // Always create fresh contact
       })
         .then((session) => {
           setSessionId(session.session_id);
-          // Save session ID and contact for this location
           localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
-          localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}_contact`, existingContactId || existingGhlContactId || "");
-          sessionContactRef.current = existingContactId || existingGhlContactId || null;
           setIsInitializing(false);
         })
         .catch((err) => {
@@ -128,57 +108,7 @@ export function useChat({
           setIsInitializing(false);
         });
     }
-  }, [testMode, sessionId, locationId, userName, userEmail, isInitializing, existingContactId, existingGhlContactId, createTestContact]);
-
-  // CRITICAL: Auto-restart session when contact changes (shadow mode)
-  // This ensures we always use the correct contact, preventing cross-contact data leakage
-  useEffect(() => {
-    // Only run if we have a session and a new contact was selected
-    const newContactKey = existingContactId || existingGhlContactId || null;
-    const currentContactKey = sessionContactRef.current;
-
-    // If contact changed and we have a session, restart with new contact
-    if (
-      testMode &&
-      sessionId &&
-      !isInitializing &&
-      newContactKey &&
-      currentContactKey !== newContactKey
-    ) {
-      console.log(`[useChat] Contact changed from ${currentContactKey} to ${newContactKey}, restarting session`);
-
-      // Clean up old session
-      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
-
-      // Clear current state
-      setMessages([]);
-      setLastDebug(null);
-      setSessionId(null);
-      sessionContactRef.current = null;
-
-      // Create new session with correct contact (will trigger the main useEffect)
-      setIsInitializing(true);
-      createTestSession({
-        locationId,
-        testContactName: userName || "Test User",
-        userEmail,
-        existingContactId,
-        existingGhlContactId,
-        createTestContact,
-      })
-        .then((session) => {
-          setSessionId(session.session_id);
-          localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
-          localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}_contact`, newContactKey || "");
-          sessionContactRef.current = newContactKey;
-          setIsInitializing(false);
-        })
-        .catch((err) => {
-          setError(`Failed to create test session: ${err.message}`);
-          setIsInitializing(false);
-        });
-    }
-  }, [testMode, sessionId, locationId, userName, userEmail, isInitializing, existingContactId, existingGhlContactId, createTestContact]);
+  }, [testMode, sessionId, locationId, userName, isInitializing, createTestContact]);
 
   // Save messages to localStorage whenever they change
   useEffect(() => {
@@ -329,32 +259,23 @@ export function useChat({
       setMessages([]);
       setLastDebug(null);
       setSessionId(null);
-      sessionContactRef.current = null;
 
-      // Create new session
+      // Create new session with fresh test contact
       const session = await createTestSession({
         locationId,
         testContactName: userName || "Test User",
-        userEmail,
-        // Shadow mode - use existing contact
-        existingContactId,
-        existingGhlContactId,
-        // Create mode - create real GHL contact
-        createTestContact,
+        createTestContact: true, // Always create fresh contact
       });
 
-      const contactKey = existingContactId || existingGhlContactId || "";
       setSessionId(session.session_id);
       localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
-      localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}_contact`, contactKey);
-      sessionContactRef.current = contactKey || null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to start new chat";
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [testMode, locationId, sessionId, userName, userEmail, existingContactId, existingGhlContactId, createTestContact]);
+  }, [testMode, locationId, sessionId, userName]);
 
   return {
     messages,
