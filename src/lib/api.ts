@@ -591,3 +591,150 @@ export async function getIndustries(orgId: string, userEmail: string): Promise<I
 
   return response.json();
 }
+
+// ==========================================
+// ORG VARIABLES API (Super Admin Only)
+// ==========================================
+
+export interface OrgVariable {
+  id: string;
+  organization_id: string;
+  internal_key: string;
+  display_name: string;
+  description: string | null;
+  variable_type: "text" | "select" | "calendar_picker" | "phone" | "email" | "textarea";
+  options: { value: string; label: string }[] | null;
+  validation_regex: string | null;
+  is_required: boolean;
+  default_value: string | null;
+  namespace: string;
+  category: string | null;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariableAutocompleteItem {
+  key: string;
+  variable: string;
+  display: string;
+  description: string;
+  builtin: boolean;
+  is_required?: boolean;
+}
+
+export interface VariableAutocomplete {
+  contact: VariableAutocompleteItem[];
+  location: VariableAutocompleteItem[];
+}
+
+/**
+ * Get all variable definitions for an organization.
+ */
+export async function getOrgVariables(orgId: string, userEmail: string): Promise<OrgVariable[]> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/variables`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a new variable definition.
+ */
+export async function createOrgVariable(
+  orgId: string,
+  userEmail: string,
+  variable: Partial<OrgVariable>
+): Promise<OrgVariable> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/variables`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(variable),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update a variable definition.
+ */
+export async function updateOrgVariable(
+  orgId: string,
+  userEmail: string,
+  varId: string,
+  variable: Partial<OrgVariable>
+): Promise<OrgVariable> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/variables/${varId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Email": userEmail,
+    },
+    body: JSON.stringify(variable),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Delete a variable definition.
+ */
+export async function deleteOrgVariable(
+  orgId: string,
+  userEmail: string,
+  varId: string
+): Promise<void> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/variables/${varId}`, {
+    method: "DELETE",
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+}
+
+/**
+ * Get variable autocomplete data for prompt editor.
+ */
+export async function getVariableAutocomplete(
+  orgId: string,
+  userEmail: string
+): Promise<VariableAutocomplete> {
+  const response = await fetch(`${API_URL}/org-setup/${orgId}/variables/autocomplete`, {
+    headers: {
+      "X-User-Email": userEmail,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}

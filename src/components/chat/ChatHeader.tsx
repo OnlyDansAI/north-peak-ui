@@ -11,6 +11,8 @@ interface ChatHeaderProps {
   onReset?: () => void;
   onNewChat?: () => void;
   onReport?: () => void;
+  onToggleDebug?: () => void;
+  debugOpen?: boolean;
   showSettings?: boolean;
 }
 
@@ -22,6 +24,8 @@ export function ChatHeader({
   onReset,
   onNewChat,
   onReport,
+  onToggleDebug,
+  debugOpen,
   showSettings = true,
 }: ChatHeaderProps) {
   return (
@@ -65,6 +69,34 @@ export function ChatHeader({
             />
           </svg>
           <span className="hidden sm:inline">New</span>
+        </button>
+      )}
+
+      {/* Debug Panel toggle */}
+      {onToggleDebug && (
+        <button
+          onClick={onToggleDebug}
+          className={cn(
+            "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+            debugOpen
+              ? "text-primary bg-primary/10"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          )}
+          title="Toggle debug panel"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+            />
+          </svg>
         </button>
       )}
 

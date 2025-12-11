@@ -22,12 +22,20 @@ import {
   deleteOrgRoute,
   getAvailableTools,
   getIndustries,
+  getOrgVariables,
+  createOrgVariable,
+  updateOrgVariable,
+  deleteOrgVariable,
+  getVariableAutocomplete,
   type OrgSettings,
   type Product,
   type OrgRoute,
   type AvailableTool,
   type Industry,
+  type OrgVariable,
+  type VariableAutocomplete,
 } from "@/lib/api";
+import { VariableAutocompleteTextarea, VariablePreview } from "@/components/VariableAutocomplete";
 import { resolveIds } from "@/lib/api";
 import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 
@@ -51,6 +59,8 @@ function OrgSetupPageContent() {
   const [routes, setRoutes] = useState<OrgRoute[]>([]);
   const [availableTools, setAvailableTools] = useState<AvailableTool[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const [variables, setVariables] = useState<OrgVariable[]>([]);
+  const [variableAutocomplete, setVariableAutocomplete] = useState<VariableAutocomplete | null>(null);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +83,10 @@ function OrgSetupPageContent() {
   // Route editing state
   const [editingRoute, setEditingRoute] = useState<OrgRoute | null>(null);
   const [isCreatingRoute, setIsCreatingRoute] = useState(false);
+
+  // Variable editing state
+  const [editingVariable, setEditingVariable] = useState<OrgVariable | null>(null);
+  const [isCreatingVariable, setIsCreatingVariable] = useState(false);
 
   // Initialize - check auth and resolve org
   useEffect(() => {
@@ -143,17 +157,20 @@ function OrgSetupPageContent() {
 
       // For now, we'll use a hardcoded org ID (the org associated with this location)
       // In a real app, we'd look up the org from the location
-      const organizationId = searchParams.get("org_id") || "11111111-1111-1111-1111-111111111111";
+      // Demo org: North Peak Life Group (Snapshot - North Peak AI Brain)
+      const organizationId = searchParams.get("org_id") || "40094796-cd22-4f6c-92f2-399bcc228608";
       setOrgId(organizationId);
 
       // Load all data
       try {
-        const [settingsData, productsData, routesData, toolsData, industriesData] = await Promise.all([
+        const [settingsData, productsData, routesData, toolsData, industriesData, variablesData, autocompleteData] = await Promise.all([
           getOrgSettings(organizationId, email),
           getOrgProducts(organizationId, email),
           getOrgRoutes(organizationId, email),
           getAvailableTools(organizationId, email),
           getIndustries(organizationId, email),
+          getOrgVariables(organizationId, email),
+          getVariableAutocomplete(organizationId, email),
         ]);
 
         setOrgSettings(settingsData);
@@ -161,6 +178,8 @@ function OrgSetupPageContent() {
         setRoutes(routesData.all_routes || []);
         setAvailableTools(toolsData);
         setIndustries(industriesData);
+        setVariables(variablesData);
+        setVariableAutocomplete(autocompleteData);
 
         // Initialize form
         setOrgForm({
@@ -336,6 +355,79 @@ function OrgSetupPageContent() {
   };
 
   // ==========================================
+  // VARIABLE HANDLERS
+  // ==========================================
+
+  const handleCreateVariable = async (variableData: Partial<OrgVariable>) => {
+    if (!orgId || !userEmail) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await createOrgVariable(orgId, userEmail, variableData);
+      const [updatedVars, updatedAutocomplete] = await Promise.all([
+        getOrgVariables(orgId, userEmail),
+        getVariableAutocomplete(orgId, userEmail),
+      ]);
+      setVariables(updatedVars);
+      setVariableAutocomplete(updatedAutocomplete);
+      setIsCreatingVariable(false);
+      setSuccess("Variable created!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create variable");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateVariable = async (varId: string, variableData: Partial<OrgVariable>) => {
+    if (!orgId || !userEmail) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await updateOrgVariable(orgId, userEmail, varId, variableData);
+      const [updatedVars, updatedAutocomplete] = await Promise.all([
+        getOrgVariables(orgId, userEmail),
+        getVariableAutocomplete(orgId, userEmail),
+      ]);
+      setVariables(updatedVars);
+      setVariableAutocomplete(updatedAutocomplete);
+      setEditingVariable(null);
+      setSuccess("Variable updated!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update variable");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteVariable = async (varId: string) => {
+    if (!orgId || !userEmail) return;
+    if (!confirm("Are you sure you want to delete this variable?")) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await deleteOrgVariable(orgId, userEmail, varId);
+      const [updatedVars, updatedAutocomplete] = await Promise.all([
+        getOrgVariables(orgId, userEmail),
+        getVariableAutocomplete(orgId, userEmail),
+      ]);
+      setVariables(updatedVars);
+      setVariableAutocomplete(updatedAutocomplete);
+      setSuccess("Variable deleted!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete variable");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ==========================================
   // RENDER
   // ==========================================
 
@@ -411,8 +503,9 @@ function OrgSetupPageContent() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="organization">Organization</TabsTrigger>
+            <TabsTrigger value="variables">Variables</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="routes">Routes</TabsTrigger>
           </TabsList>
@@ -480,6 +573,113 @@ function OrgSetupPageContent() {
                     {isSaving ? "Saving..." : "Save Organization Settings"}
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Variables Tab */}
+          <TabsContent value="variables">
+            <Card>
+              <CardHeader>
+                <CardTitle>Variable Definitions</CardTitle>
+                <CardDescription>
+                  Define variables that locations must fill in. Use these in prompts with {"{variable_name}"} syntax.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Existing Variables */}
+                {variables.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Current Variables</h3>
+                    {variables.map((variable) => (
+                      <div key={variable.id} className="p-4 border rounded-lg space-y-2">
+                        {editingVariable?.id === variable.id ? (
+                          <VariableEditor
+                            variable={editingVariable}
+                            onSave={(data) => handleUpdateVariable(variable.id, data)}
+                            onCancel={() => setEditingVariable(null)}
+                            isSaving={isSaving}
+                          />
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
+                                    {`{${variable.namespace}.${variable.internal_key}}`}
+                                  </code>
+                                  <span className="text-muted-foreground">{variable.display_name}</span>
+                                  {variable.is_required && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700">
+                                      Required
+                                    </span>
+                                  )}
+                                </div>
+                                {variable.description && (
+                                  <div className="text-sm text-muted-foreground mt-1">{variable.description}</div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingVariable(variable)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteVariable(variable.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground grid grid-cols-3 gap-2">
+                              <div>Type: {variable.variable_type}</div>
+                              <div>Namespace: {variable.namespace}</div>
+                              {variable.default_value && <div>Default: {variable.default_value}</div>}
+                              {variable.category && <div>Category: {variable.category}</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Create New Variable */}
+                {isCreatingVariable ? (
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-medium mb-3">Create New Variable</h3>
+                    <VariableEditor
+                      onSave={handleCreateVariable}
+                      onCancel={() => setIsCreatingVariable(false)}
+                      isSaving={isSaving}
+                    />
+                  </div>
+                ) : (
+                  <div className="pt-4 border-t">
+                    <Button onClick={() => setIsCreatingVariable(true)}>Create New Variable</Button>
+                  </div>
+                )}
+
+                {/* Variable Usage Help */}
+                <div className="pt-4 border-t">
+                  <h3 className="text-sm font-medium mb-2">Using Variables in Prompts</h3>
+                  <div className="bg-muted/50 rounded-lg p-4 text-sm space-y-2">
+                    <p>Variables can be used in system prompts and other text fields:</p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">{"{location.ai_agent_name}"}</code> - AI assistant&apos;s name</li>
+                      <li><code className="bg-muted px-1 rounded">{"{location.business_name}"}</code> - Business name</li>
+                      <li><code className="bg-muted px-1 rounded">{"{contact.first_name}"}</code> - Contact&apos;s first name</li>
+                    </ul>
+                    <p className="text-muted-foreground">
+                      Locations will be required to fill in values for required variables before going live.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -603,6 +803,7 @@ function OrgSetupPageContent() {
                           <RouteEditor
                             route={editingRoute}
                             availableTools={availableTools}
+                            variableAutocomplete={variableAutocomplete}
                             onSave={(data) => handleUpdateRoute(route.id, data)}
                             onCancel={() => setEditingRoute(null)}
                             isSaving={isSaving}
@@ -670,6 +871,7 @@ function OrgSetupPageContent() {
                     <h3 className="text-sm font-medium mb-3">Create New Route</h3>
                     <RouteEditor
                       availableTools={availableTools}
+                      variableAutocomplete={variableAutocomplete}
                       onSave={handleCreateRoute}
                       onCancel={() => setIsCreatingRoute(false)}
                       isSaving={isSaving}
@@ -696,12 +898,13 @@ function OrgSetupPageContent() {
 interface RouteEditorProps {
   route?: OrgRoute;
   availableTools: AvailableTool[];
+  variableAutocomplete: VariableAutocomplete | null;
   onSave: (data: Partial<OrgRoute>) => void;
   onCancel: () => void;
   isSaving: boolean;
 }
 
-function RouteEditor({ route, availableTools, onSave, onCancel, isSaving }: RouteEditorProps) {
+function RouteEditor({ route, availableTools, variableAutocomplete, onSave, onCancel, isSaving }: RouteEditorProps) {
   const [formData, setFormData] = useState({
     route_name: route?.route_name || "",
     description: route?.description || "",
@@ -745,15 +948,14 @@ function RouteEditor({ route, availableTools, onSave, onCancel, isSaving }: Rout
 
       <div className="space-y-2">
         <label className="text-sm font-medium">System Prompt</label>
-        <Textarea
-          placeholder="Instructions for the AI when handling this route..."
-          rows={6}
+        <VariableAutocompleteTextarea
           value={formData.system_prompt}
-          onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
+          onChange={(value) => setFormData({ ...formData, system_prompt: value })}
+          variables={variableAutocomplete}
+          placeholder="Instructions for the AI when handling this route... Type { to see available variables"
+          rows={6}
         />
-        <p className="text-xs text-muted-foreground">
-          Use {"{"}variables{"}"} for dynamic content: {"{"}assistant_name{"}"}, {"{"}business_name{"}"}, {"{"}contact_name{"}"}
-        </p>
+        <VariablePreview template={formData.system_prompt} />
       </div>
 
       <div className="space-y-2">
@@ -837,6 +1039,290 @@ function RouteEditor({ route, availableTools, onSave, onCancel, isSaving }: Rout
       <div className="flex gap-2 pt-2">
         <Button onClick={() => onSave(formData)} disabled={isSaving || (!route && !formData.route_name)}>
           {isSaving ? "Saving..." : route ? "Update Route" : "Create Route"}
+        </Button>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// VARIABLE EDITOR COMPONENT
+// ==========================================
+
+interface VariableEditorProps {
+  variable?: OrgVariable;
+  onSave: (data: Partial<OrgVariable>) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+}
+
+const VARIABLE_TYPES = [
+  { value: "text", label: "Text (single line)" },
+  { value: "textarea", label: "Text (multi-line)" },
+  { value: "select", label: "Dropdown Select" },
+  { value: "phone", label: "Phone Number" },
+  { value: "email", label: "Email Address" },
+  { value: "calendar_picker", label: "Calendar Picker" },
+];
+
+const NAMESPACES = [
+  { value: "location", label: "Location" },
+  { value: "contact", label: "Contact" },
+];
+
+const CATEGORIES = [
+  { value: "identity", label: "Identity (names, branding)" },
+  { value: "contact_info", label: "Contact Info (phone, email)" },
+  { value: "scheduling", label: "Scheduling (calendars, availability)" },
+  { value: "business", label: "Business Settings" },
+  { value: "custom", label: "Custom" },
+];
+
+function VariableEditor({ variable, onSave, onCancel, isSaving }: VariableEditorProps) {
+  const [formData, setFormData] = useState({
+    internal_key: variable?.internal_key || "",
+    display_name: variable?.display_name || "",
+    description: variable?.description || "",
+    variable_type: variable?.variable_type || "text",
+    namespace: variable?.namespace || "location",
+    is_required: variable?.is_required ?? false,
+    default_value: variable?.default_value || "",
+    category: variable?.category || "",
+    display_order: variable?.display_order ?? 0,
+    options: variable?.options || [],
+  });
+
+  const [newOption, setNewOption] = useState({ value: "", label: "" });
+
+  // Auto-generate internal_key from display_name
+  const handleDisplayNameChange = (displayName: string) => {
+    setFormData({
+      ...formData,
+      display_name: displayName,
+      // Only auto-update internal_key if creating new variable and key is empty or matches auto-generated pattern
+      internal_key: !variable
+        ? displayName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+        : formData.internal_key,
+    });
+  };
+
+  const handleAddOption = () => {
+    if (newOption.value && newOption.label) {
+      setFormData({
+        ...formData,
+        options: [...formData.options, { ...newOption }],
+      });
+      setNewOption({ value: "", label: "" });
+    }
+  };
+
+  const handleRemoveOption = (index: number) => {
+    setFormData({
+      ...formData,
+      options: formData.options.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleSubmit = () => {
+    // Clean up data before saving
+    const saveData: Partial<OrgVariable> = {
+      internal_key: formData.internal_key,
+      display_name: formData.display_name,
+      description: formData.description || null,
+      variable_type: formData.variable_type as OrgVariable["variable_type"],
+      namespace: formData.namespace,
+      is_required: formData.is_required,
+      default_value: formData.default_value || null,
+      category: formData.category || null,
+      display_order: formData.display_order,
+    };
+
+    // Only include options for select type
+    if (formData.variable_type === "select" && formData.options.length > 0) {
+      saveData.options = formData.options;
+    } else {
+      saveData.options = null;
+    }
+
+    onSave(saveData);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Display Name *</label>
+          <Input
+            placeholder="e.g., AI Agent Name"
+            value={formData.display_name}
+            onChange={(e) => handleDisplayNameChange(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Internal Key *</label>
+          <Input
+            placeholder="e.g., ai_agent_name"
+            value={formData.internal_key}
+            onChange={(e) => setFormData({ ...formData, internal_key: e.target.value })}
+            disabled={!!variable} // Can't change key after creation
+            className={variable ? "bg-muted" : ""}
+          />
+          {!variable && (
+            <p className="text-xs text-muted-foreground">Auto-generated from display name. Used in prompts as {`{namespace.${formData.internal_key || "key"}}`}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Description</label>
+        <Input
+          placeholder="What is this variable used for?"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Type</label>
+          <Select
+            value={formData.variable_type}
+            onChange={(e) => setFormData({ ...formData, variable_type: e.target.value as typeof formData.variable_type })}
+          >
+            {VARIABLE_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Namespace</label>
+          <Select
+            value={formData.namespace}
+            onChange={(e) => setFormData({ ...formData, namespace: e.target.value })}
+          >
+            {NAMESPACES.map((ns) => (
+              <option key={ns.value} value={ns.value}>
+                {ns.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Category</label>
+          <Select
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          >
+            <option value="">None</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat.value} value={cat.value}>
+                {cat.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
+      {/* Options for select type */}
+      {formData.variable_type === "select" && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Options</label>
+          <div className="space-y-2">
+            {formData.options.map((option, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <code className="text-xs bg-muted px-2 py-1 rounded">{option.value}</code>
+                <span className="text-sm">{option.label}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveOption(index)}
+                  className="ml-auto text-destructive hover:text-destructive"
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Value"
+                value={newOption.value}
+                onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
+                className="w-32"
+              />
+              <Input
+                placeholder="Label"
+                value={newOption.label}
+                onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddOption}
+                disabled={!newOption.value || !newOption.label}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Default Value</label>
+          <Input
+            placeholder="Optional default"
+            value={formData.default_value}
+            onChange={(e) => setFormData({ ...formData, default_value: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Display Order</label>
+          <Input
+            type="number"
+            min="0"
+            value={formData.display_order}
+            onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={formData.is_required}
+            onChange={(e) => setFormData({ ...formData, is_required: e.target.checked })}
+            className="rounded border-input"
+          />
+          <span className="text-sm">Required</span>
+        </label>
+        <span className="text-xs text-muted-foreground">
+          Required variables must be filled in by locations before going live
+        </span>
+      </div>
+
+      {/* Preview */}
+      <div className="bg-muted/50 rounded-lg p-3 text-sm">
+        <span className="text-muted-foreground">Variable syntax: </span>
+        <code className="bg-muted px-1.5 py-0.5 rounded">
+          {`{${formData.namespace}.${formData.internal_key || "key"}}`}
+        </code>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <Button
+          onClick={handleSubmit}
+          disabled={isSaving || !formData.internal_key || !formData.display_name}
+        >
+          {isSaving ? "Saving..." : variable ? "Update Variable" : "Create Variable"}
         </Button>
         <Button variant="outline" onClick={onCancel}>
           Cancel

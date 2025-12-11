@@ -5,7 +5,7 @@ import { useChat } from "@/hooks/useChat";
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
-import { DebugPanel } from "./DebugPanel";
+import { DebugDrawer } from "./DebugDrawer";
 import type { ChatContext, ChatMessage, DebugInfo } from "@/types";
 
 interface ChatContainerProps {
@@ -13,7 +13,7 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({ context }: ChatContainerProps) {
-  const [debugExpanded, setDebugExpanded] = useState(true);
+  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
   const {
@@ -63,6 +63,8 @@ export function ChatContainer({ context }: ChatContainerProps) {
         onReset={context.testMode ? handleReset : undefined}
         onNewChat={context.testMode ? handleNewChat : undefined}
         onReport={context.testMode ? handleReport : undefined}
+        onToggleDebug={context.testMode ? () => setDebugDrawerOpen(!debugDrawerOpen) : undefined}
+        debugOpen={debugDrawerOpen}
       />
 
       {/* Report Modal - placeholder for now */}
@@ -77,12 +79,14 @@ export function ChatContainer({ context }: ChatContainerProps) {
 
       <MessageList messages={messages} />
 
-      {/* Debug Panel - only in test mode */}
+      {/* Debug Drawer - only in test mode */}
       {context.testMode && (
-        <DebugPanel
+        <DebugDrawer
+          isOpen={debugDrawerOpen}
+          onClose={() => setDebugDrawerOpen(false)}
           debug={lastDebug}
-          isExpanded={debugExpanded}
-          onToggle={() => setDebugExpanded(!debugExpanded)}
+          messages={messages}
+          sessionId={sessionId}
         />
       )}
 
