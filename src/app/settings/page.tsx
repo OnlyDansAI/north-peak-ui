@@ -43,9 +43,8 @@ const SUPER_ADMIN_EMAILS = ["dan@onlydans.ai", "danny@onlydans.ai"];
 // Fallback GHL location ID for demo/test mode
 const FALLBACK_GHL_LOCATION_ID = "ojKtYYUFbTKUmDCA5KUH";
 
-// Allow super admin override via URL param for development
-// Usage: /settings?admin=true or /settings?email=dan@onlydans.ai
-const DEV_ADMIN_OVERRIDE = process.env.NODE_ENV === "development";
+// Demo org ID - anyone on this org is treated as super admin (for testing)
+const DEMO_ORG_ID = "40094796-cd22-4f6c-92f2-399bcc228608";
 
 function SettingsPageContent() {
   const searchParams = useSearchParams();
@@ -53,16 +52,16 @@ function SettingsPageContent() {
   // Auth state
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Check for admin override via URL params (dev mode or explicit email)
-  const adminOverride = searchParams.get("admin") === "true";
-  const emailOverride = searchParams.get("email");
-  const effectiveEmail = emailOverride || userEmail;
-
-  const isSuperAdmin = adminOverride || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
-
   // Location state
   const [locationId, setLocationId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+
+  // Super admin check - URL override OR email match OR demo org
+  const adminOverride = searchParams.get("admin") === "true";
+  const emailOverride = searchParams.get("email");
+  const effectiveEmail = emailOverride || userEmail;
+  const isDemoOrg = orgId === DEMO_ORG_ID;
+  const isSuperAdmin = adminOverride || isDemoOrg || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
   const [settings, setSettings] = useState<LocationSettings | null>(null);
   const [calendars, setCalendars] = useState<Calendar[]>([]);
 
