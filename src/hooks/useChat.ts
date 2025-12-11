@@ -191,20 +191,29 @@ export function useChat({
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Something went wrong";
-        setError(errorMessage);
 
-        // Replace loading message with error state
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === loadingMessage.id
-              ? {
-                  ...msg,
-                  content: "Sorry, I encountered an error. Please try again.",
-                  isLoading: false,
-                }
-              : msg
-          )
-        );
+        // If session not found, clear stale data and prompt user to start new chat
+        if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+          localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+          localStorage.removeItem(`${STORAGE_SESSION_KEY}_${locationId}`);
+          setSessionId(null);
+          setMessages([]);
+          setError("Session expired. Click 'New Chat' to start fresh.");
+        } else {
+          setError(errorMessage);
+          // Replace loading message with error state
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === loadingMessage.id
+                ? {
+                    ...msg,
+                    content: "Sorry, I encountered an error. Please try again.",
+                    isLoading: false,
+                  }
+                : msg
+            )
+          );
+        }
       } finally {
         setIsLoading(false);
       }
@@ -219,7 +228,7 @@ export function useChat({
   }, []);
 
   const resetSession = useCallback(async () => {
-    if (!testMode || !sessionId) return;
+    if (!testMode || !sessionId || !locationId) return;
 
     try {
       await resetTestSession(sessionId);
@@ -229,10 +238,35 @@ export function useChat({
       // Clear localStorage for this session
       localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
     } catch (err) {
+      // If session not found (purged from DB), clear local state and create new session
       const errorMessage = err instanceof Error ? err.message : "Failed to reset session";
-      setError(errorMessage);
+      if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+        // Clear stale local data
+        localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+        localStorage.removeItem(`${STORAGE_SESSION_KEY}_${locationId}`);
+        setMessages([]);
+        setLastDebug(null);
+        setSessionId(null);
+        setError(null);
+
+        // Create a fresh session
+        try {
+          const session = await createTestSession({
+            locationId,
+            testContactName: userName || "Test User",
+            createTestContact: true,
+          });
+          setSessionId(session.session_id);
+          localStorage.setItem(`${STORAGE_SESSION_KEY}_${locationId}`, session.session_id);
+        } catch (createErr) {
+          const createError = createErr instanceof Error ? createErr.message : "Failed to create session";
+          setError(createError);
+        }
+      } else {
+        setError(errorMessage);
+      }
     }
-  }, [testMode, sessionId]);
+  }, [testMode, sessionId, locationId, userName]);
 
   // Start a completely new chat - deletes old session and creates fresh one
   const startNewChat = useCallback(async () => {
@@ -251,9 +285,12 @@ export function useChat({
         try {
           await resetTestSession(sessionId);
         } catch {
-          // Ignore errors ending old session
+          // Ignore errors ending old session (might be purged already)
         }
       }
+
+      // Clear location session key to prevent restoring stale session
+      localStorage.removeItem(`${STORAGE_SESSION_KEY}_${locationId}`);
 
       // Clear current state
       setMessages([]);
@@ -264,7 +301,7 @@ export function useChat({
       const session = await createTestSession({
         locationId,
         testContactName: userName || "Test User",
-        createTestContact: true, // Always create fresh contact
+        createTestContact: true,
       });
 
       setSessionId(session.session_id);
