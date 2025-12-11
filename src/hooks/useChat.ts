@@ -16,6 +16,11 @@ interface UseChatOptions {
   sessionId?: string;
   userEmail?: string;
   userName?: string;
+  // Shadow mode - use existing contact (recommended for demos)
+  existingContactId?: string;
+  existingGhlContactId?: string;
+  // Create mode - create real GHL contact
+  createTestContact?: boolean;
 }
 
 interface UseChatReturn {
@@ -58,6 +63,9 @@ export function useChat({
   sessionId: initialSessionId,
   userEmail,
   userName,
+  existingContactId,
+  existingGhlContactId,
+  createTestContact = false,
 }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +104,11 @@ export function useChat({
         locationId,
         testContactName: userName || "Test User",
         userEmail,
+        // Shadow mode - use existing contact
+        existingContactId,
+        existingGhlContactId,
+        // Create mode - create real GHL contact
+        createTestContact,
       })
         .then((session) => {
           setSessionId(session.session_id);
@@ -108,7 +121,7 @@ export function useChat({
           setIsInitializing(false);
         });
     }
-  }, [testMode, sessionId, locationId, userName, userEmail, isInitializing]);
+  }, [testMode, sessionId, locationId, userName, userEmail, isInitializing, existingContactId, existingGhlContactId, createTestContact]);
 
   // Save messages to localStorage whenever they change
   useEffect(() => {
@@ -265,6 +278,11 @@ export function useChat({
         locationId,
         testContactName: userName || "Test User",
         userEmail,
+        // Shadow mode - use existing contact
+        existingContactId,
+        existingGhlContactId,
+        // Create mode - create real GHL contact
+        createTestContact,
       });
 
       setSessionId(session.session_id);
@@ -275,7 +293,7 @@ export function useChat({
     } finally {
       setIsLoading(false);
     }
-  }, [testMode, locationId, sessionId, userName, userEmail]);
+  }, [testMode, locationId, sessionId, userName, userEmail, existingContactId, existingGhlContactId, createTestContact]);
 
   return {
     messages,

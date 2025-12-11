@@ -86,4 +86,9 @@ export interface ChatContext {
   // Test session mode
   testMode?: boolean;
   sessionId?: string;
+  // Shadow mode - use existing contact (recommended for demos)
+  existingContactId?: string;
+  existingGhlContactId?: string;
+  // Create mode - create real GHL contact
+  createTestContact?: boolean;
 }

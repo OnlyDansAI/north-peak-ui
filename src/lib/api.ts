@@ -76,7 +76,51 @@ export async function checkHealth(): Promise<{ status: string; version: string }
 // ==========================================
 
 /**
+ * Contact available for shadow mode testing.
+ */
+export interface TestContact {
+  contact_id: string;
+  ghl_contact_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string;
+  email: string | null;
+  phone: string | null;
+  created_at: string;
+}
+
+/**
+ * Get contacts available for shadow mode testing.
+ */
+export async function getTestContacts(params: {
+  locationId: string;
+  search?: string;
+  limit?: number;
+  excludeTest?: boolean;
+}): Promise<{ location_id: string; contacts: TestContact[]; total: number }> {
+  const searchParams = new URLSearchParams();
+  if (params.search) searchParams.set("search", params.search);
+  if (params.limit) searchParams.set("limit", String(params.limit));
+  if (params.excludeTest !== undefined) searchParams.set("exclude_test", String(params.excludeTest));
+
+  const url = `${API_URL}/chat/contacts/${params.locationId}${searchParams.toString() ? `?${searchParams}` : ""}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Create a new test chat session.
+ *
+ * Modes:
+ * - Default: In-memory only (no GHL contact created)
+ * - Shadow mode: Use existing contact (existingContactId or existingGhlContactId)
+ * - Create mode: Create real GHL contact (createTestContact: true)
  */
 export async function createTestSession(params: {
   locationId: string;
@@ -85,6 +129,11 @@ export async function createTestSession(params: {
   testContactName?: string;
   userId?: string;
   userEmail?: string;
+  // Shadow mode - use existing contact
+  existingContactId?: string;
+  existingGhlContactId?: string;
+  // Create mode - create real GHL contact
+  createTestContact?: boolean;
 }): Promise<TestSession> {
   const response = await fetch(`${API_URL}/chat/session`, {
     method: "POST",
@@ -98,6 +147,11 @@ export async function createTestSession(params: {
       test_contact_name: params.testContactName || "Test User",
       user_id: params.userId,
       user_email: params.userEmail,
+      // Shadow mode
+      existing_contact_id: params.existingContactId,
+      existing_ghl_contact_id: params.existingGhlContactId,
+      // Create mode
+      create_test_contact: params.createTestContact,
     }),
   });
 
