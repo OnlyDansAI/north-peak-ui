@@ -203,6 +203,7 @@ export function RouteEditorSheet({
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="basic">Basic</TabsTrigger>
+              <TabsTrigger value="router">Router</TabsTrigger>
               <TabsTrigger value="prompt">Prompt</TabsTrigger>
               <TabsTrigger value="tools">Tools</TabsTrigger>
               <TabsTrigger value="goals">Goals</TabsTrigger>
@@ -306,6 +307,79 @@ export function RouteEditorSheet({
                     </label>
                   </div>
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* Router Tab - V2 AI Classification Settings */}
+            <TabsContent value="router" className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Configure how the AI router classifies messages for this route.
+              </p>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Route Description</label>
+                <Textarea
+                  value={formData.route_description || ""}
+                  onChange={(e) => setFormData({ ...formData, route_description: e.target.value })}
+                  placeholder="Handle appointment booking requests, schedule changes, and cancellations"
+                  rows={3}
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  A clear description helps the AI router correctly classify incoming messages.
+                  Be specific about what types of conversations this route handles.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Model Override</label>
+                <select
+                  value={formData.model_name || ""}
+                  onChange={(e) => setFormData({ ...formData, model_name: e.target.value || null })}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="">Inherit from template</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (fast, cost-effective)</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro (complex conversations)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (fast, reliable)</option>
+                  <option value="gpt-4o">GPT-4o (highest quality)</option>
+                  <option value="claude-3-haiku">Claude 3 Haiku (fast)</option>
+                  <option value="claude-sonnet-4">Claude Sonnet 4 (balanced)</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Use faster models for simple routes (FAQ), more capable models for complex routes (booking).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Router Examples</label>
+                <Textarea
+                  value={(formData.router_examples || []).join("\n")}
+                  onChange={(e) => {
+                    const examples = e.target.value
+                      .split("\n")
+                      .map((s) => s.trim())
+                      .filter((s) => s.length > 0);
+                    setFormData({ ...formData, router_examples: examples });
+                  }}
+                  placeholder="I want to book an appointment&#10;Can I schedule a meeting?&#10;I need to reschedule my visit&#10;Cancel my appointment please"
+                  rows={6}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  One example message per line. These help the AI router learn what messages belong to this route.
+                  Include variations of how customers might phrase their requests.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-blue-500/10 text-blue-700 text-sm">
+                <strong>Routing Tips:</strong>
+                <ul className="mt-1 text-xs space-y-1 list-disc list-inside">
+                  <li>Be specific in your description - avoid generic terms</li>
+                  <li>Include 4-8 example messages for best results</li>
+                  <li>Use examples that reflect real customer language</li>
+                  <li>Higher confidence threshold = fewer false positives</li>
+                </ul>
               </div>
             </TabsContent>
 

@@ -324,8 +324,23 @@ export async function getLocationCalendars(
 // ==========================================
 
 export interface Product {
+  id?: string;
+  organization_id?: string;
+  slug: string;
   name: string;
   description?: string;
+  system_prompt?: string;
+  goals?: Record<string, unknown>;
+  is_default?: boolean;
+  priority?: number;
+  detection_keywords?: string[];
+  is_active?: boolean;
+  // V2 fields
+  tool_config?: Record<string, unknown>;
+  tags_on_book?: string[];
+  tags_on_start?: string[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface OrgSettings {
@@ -358,6 +373,10 @@ export interface OrgRoute {
   is_active: boolean;
   priority: number;
   source?: "org" | "agent";
+  // V2 fields
+  route_description?: string | null;
+  model_name?: string | null;
+  router_examples?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -369,10 +388,20 @@ export interface OrgRoutesResponse {
   all_routes: OrgRoute[];
 }
 
+export interface ToolParameter {
+  name: string;
+  type: string;
+  default?: unknown;
+  description: string;
+}
+
 export interface AvailableTool {
   name: string;
+  display_name?: string;
   description: string;
   category: string;
+  requires?: string[];
+  parameters?: ToolParameter[];
 }
 
 export interface Industry {

@@ -35,7 +35,7 @@ import {
   type AvailableTool,
   type Industry,
 } from "@/lib/api";
-import { RouteList } from "@/components/settings";
+import { RouteList, ProductEditorSheet } from "@/components/settings";
 import { isInGHLIframe, authenticateWithGHL } from "@/lib/sso";
 
 // Super admin emails
@@ -117,7 +117,8 @@ function SettingsPageContent() {
 
   // Product editing state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [newProduct, setNewProduct] = useState({ name: "", description: "" });
+  const [isNewProduct, setIsNewProduct] = useState(false);
+  const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
 
   // Route editing state - now handled by RouteList component
 
@@ -425,27 +426,46 @@ function SettingsPageContent() {
   };
 
   // Product handlers
-  const handleAddProduct = async () => {
-    if (!orgId || !userEmail || !newProduct.name) return;
+  const handleOpenNewProduct = () => {
+    setEditingProduct({
+      name: "",
+      slug: "",
+      description: "",
+      is_active: true,
+      priority: 100,
+    });
+    setIsNewProduct(true);
+    setEditingProductIndex(null);
+  };
+
+  const handleOpenEditProduct = (product: Product, index: number) => {
+    setEditingProduct(product);
+    setIsNewProduct(false);
+    setEditingProductIndex(index);
+  };
+
+  const handleSaveProduct = async (product: Product) => {
+    if (!orgId || !userEmail) return;
     try {
-      const result = await addOrgProduct(orgId, userEmail, newProduct);
-      const product = result.product;
-      setProducts([...products, product]);
-      setNewProduct({ name: "", description: "" });
+      if (isNewProduct) {
+        const result = await addOrgProduct(orgId, userEmail, product);
+        setProducts([...products, result.product]);
+      } else if (editingProductIndex !== null) {
+        const result = await updateOrgProduct(orgId, userEmail, editingProductIndex, product);
+        setProducts(products.map((p, i) => i === editingProductIndex ? result.product : p));
+      }
+      setEditingProduct(null);
+      setIsNewProduct(false);
+      setEditingProductIndex(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add product");
+      throw err; // Let the sheet handle the error display
     }
   };
 
-  const handleUpdateProduct = async (product: Product, index: number) => {
-    if (!orgId || !userEmail) return;
-    try {
-      const result = await updateOrgProduct(orgId, userEmail, index, product);
-      setProducts(products.map((p, i) => i === index ? result.product : p));
-      setEditingProduct(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update product");
-    }
+  const handleCloseProductEditor = () => {
+    setEditingProduct(null);
+    setIsNewProduct(false);
+    setEditingProductIndex(null);
   };
 
   const handleDeleteProduct = async (index: number) => {
@@ -866,60 +886,98 @@ function SettingsPageContent() {
             <TabsContent value="products">
               <Card>
                 <CardHeader>
-                  <CardTitle>Products & Services</CardTitle>
-                  <CardDescription>
-                    Define products that the AI can discuss and recommend.
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Products & Services</CardTitle>
+                      <CardDescription>
+                        Define products that the AI can discuss and recommend. Configure tool behavior and auto-tagging per product.
+                      </CardDescription>
+                    </div>
+                    <Button onClick={handleOpenNewProduct}>
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add Product
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Add Product */}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Product name"
-                      value={newProduct.name}
-                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                    />
-                    <Input
-                      placeholder="Description"
-                      value={newProduct.description}
-                      onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                    />
-                    <Button onClick={handleAddProduct} disabled={!newProduct.name}>Add</Button>
-                  </div>
-
                   {/* Product List */}
                   <div className="space-y-2">
                     {products.map((product, index) => (
-                      <div key={index} className="flex items-center gap-2 p-2 border rounded">
-                        {editingProduct?.name === product.name ? (
-                          <>
-                            <Input
-                              value={editingProduct.name}
-                              onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                            />
-                            <Input
-                              value={editingProduct.description || ""}
-                              onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                            />
-                            <Button size="sm" onClick={() => handleUpdateProduct(editingProduct, index)}>Save</Button>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingProduct(null)}>Cancel</Button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex-1 font-medium">{product.name}</span>
-                            <span className="flex-1 text-muted-foreground text-sm">{product.description}</span>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingProduct(product)}>Edit</Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDeleteProduct(index)}>Delete</Button>
-                          </>
-                        )}
+                      <div
+                        key={product.id || index}
+                        className={`flex items-center gap-4 p-4 border rounded-lg transition-colors hover:bg-muted/50 cursor-pointer ${
+                          product.is_active === false ? "opacity-50" : ""
+                        }`}
+                        onClick={() => handleOpenEditProduct(product, index)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{product.name}</span>
+                            {product.is_default && (
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Default</span>
+                            )}
+                            {product.is_active === false && (
+                              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Inactive</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {product.description || "No description"}
+                          </div>
+                          <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                            <span>Slug: {product.slug}</span>
+                            {product.priority && <span>Priority: {product.priority}</span>}
+                            {(product.tags_on_book?.length || 0) > 0 && (
+                              <span>{product.tags_on_book?.length} auto-tag(s) on book</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditProduct(product, index);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProduct(index);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     ))}
                     {products.length === 0 && (
-                      <p className="text-muted-foreground text-sm">No products defined yet.</p>
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground text-sm mb-4">No products defined yet.</p>
+                        <Button variant="outline" onClick={handleOpenNewProduct}>
+                          Create your first product
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Product Editor Sheet */}
+              <ProductEditorSheet
+                product={editingProduct}
+                availableTools={availableTools}
+                onSave={handleSaveProduct}
+                onClose={handleCloseProductEditor}
+                isNew={isNewProduct}
+              />
             </TabsContent>
           )}
 
