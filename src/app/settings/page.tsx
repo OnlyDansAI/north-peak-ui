@@ -57,12 +57,15 @@ function SettingsPageContent() {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
 
-  // Super admin check - URL override OR email match OR demo org
+  // Super admin check - requires authenticated user
   const adminOverride = searchParams.get("admin") === "true";
   const emailOverride = searchParams.get("email");
   const effectiveEmail = emailOverride || userEmail;
   const isDemoOrg = orgId === DEMO_ORG_ID;
-  const isSuperAdmin = adminOverride || isDemoOrg || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
+  // Must be authenticated AND (admin override OR demo org OR super admin email)
+  const isSuperAdmin = effectiveEmail
+    ? (adminOverride || isDemoOrg || SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()))
+    : false;
   const [settings, setSettings] = useState<LocationSettings | null>(null);
   const [calendars, setCalendars] = useState<Calendar[]>([]);
 
@@ -289,26 +292,17 @@ function SettingsPageContent() {
 
   // Load org data only for super admins
   useEffect(() => {
-    // Re-compute isSuperAdmin inside the effect to ensure fresh values
-    const isDemoOrgCheck = orgId === DEMO_ORG_ID;
-    const isSuperAdminCheck = adminOverride || isDemoOrgCheck || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
-
-    // Demo org doesn't require userEmail (SSO may timeout)
-    if (!isSuperAdminCheck || !orgId) return;
-    if (!isDemoOrgCheck && !userEmail) return;
-
-    // Use placeholder email for demo org API calls when SSO times out
-    const emailForApi = userEmail || (isDemoOrgCheck ? "demo@northpeaklife.com" : "");
-    if (!emailForApi) return;
+    // Must have authenticated super admin access and org ID
+    if (!isSuperAdmin || !orgId || !userEmail) return;
 
     async function loadOrgData() {
       try {
         const [settingsData, productsData, routesData, toolsData, industriesData] = await Promise.all([
-          getOrgSettings(orgId!, emailForApi),
-          getOrgProducts(orgId!, emailForApi),
-          getOrgRoutes(orgId!, emailForApi),
-          getAvailableTools(orgId!, emailForApi),
-          getIndustries(orgId!, emailForApi),
+          getOrgSettings(orgId!, userEmail!),
+          getOrgProducts(orgId!, userEmail!),
+          getOrgRoutes(orgId!, userEmail!),
+          getAvailableTools(orgId!, userEmail!),
+          getIndustries(orgId!, userEmail!),
         ]);
 
         setOrgSettings(settingsData);
@@ -329,7 +323,7 @@ function SettingsPageContent() {
     }
 
     loadOrgData();
-  }, [adminOverride, orgId, userEmail, effectiveEmail]);
+  }, [isSuperAdmin, orgId, userEmail]);
 
   // Location form submit
   const handleLocationSubmit = async (e: React.FormEvent) => {
@@ -792,6 +786,24 @@ function SettingsPageContent() {
           {isSuperAdmin && orgId && (
             <TabsContent value="organization">
               <form onSubmit={handleOrgSubmit} className="space-y-6 max-w-2xl">
+                {/* Current User Info */}
+                <div className="p-4 rounded-lg bg-muted/50 space-y-1 text-sm mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Logged in as:</span>
+                    <span className={effectiveEmail ? "text-green-600" : "text-yellow-600"}>
+                      {effectiveEmail || "Not authenticated"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Access Level:</span>
+                    <span>{isSuperAdmin ? "Super Admin" : "Standard"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Organization ID:</span>
+                    <span className="font-mono text-xs">{orgId}</span>
+                  </div>
+                </div>
+
                 <Card>
                   <CardHeader>
                     <CardTitle>Organization Settings</CardTitle>
