@@ -326,7 +326,7 @@ export async function getLocationCalendars(
 export interface Product {
   id?: string;
   organization_id?: string;
-  slug: string;
+  slug?: string;
   name: string;
   description?: string;
   system_prompt?: string;
