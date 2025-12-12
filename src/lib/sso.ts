@@ -36,13 +36,22 @@ export function isInGHLIframe(): boolean {
  */
 export function requestGHLUserData(): Promise<string> {
   return new Promise((resolve, reject) => {
+    console.log("[SSO] Sending REQUEST_USER_DATA to parent frame...");
+
     const timeout = setTimeout(() => {
+      console.error("[SSO] Timeout waiting for GHL response (5s)");
       window.removeEventListener("message", messageHandler);
       reject(new Error("GHL user data request timed out"));
     }, 5000);
 
     const messageHandler = (event: MessageEvent) => {
+      // Log all messages for debugging
+      if (event.data?.message) {
+        console.log("[SSO] Received message:", event.data.message);
+      }
+
       if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
+        console.log("[SSO] Got encrypted payload, length:", event.data.payload?.length || 0);
         clearTimeout(timeout);
         window.removeEventListener("message", messageHandler);
         resolve(event.data.payload);
@@ -58,6 +67,8 @@ export function requestGHLUserData(): Promise<string> {
  * Decrypt SSO data via our backend.
  */
 export async function decryptSSOData(encryptedData: string): Promise<GHLUserData> {
+  console.log("[SSO] Sending to backend for decryption...");
+
   const response = await fetch(`${API_URL}/auth/sso/decrypt`, {
     method: "POST",
     headers: {
@@ -68,10 +79,13 @@ export async function decryptSSOData(encryptedData: string): Promise<GHLUserData
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Decryption failed" }));
+    console.error("[SSO] Backend decrypt failed:", error);
     throw new Error(error.detail || `SSO error: ${response.status}`);
   }
 
-  return response.json();
+  const userData = await response.json();
+  console.log("[SSO] Backend decrypt success:", userData);
+  return userData;
 }
 
 /**

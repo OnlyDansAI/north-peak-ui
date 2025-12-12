@@ -145,10 +145,12 @@ function SettingsPageContent() {
         // Still try to get user email via SSO
         if (isInGHLIframe()) {
           try {
+            console.log("[SSO] Attempting GHL authentication...");
             const userData = await authenticateWithGHL();
+            console.log("[SSO] Success:", { userId: userData.userId, email: userData.email, type: userData.type });
             setUserEmail(userData.email || null);
-          } catch {
-            // Continue without user email
+          } catch (err) {
+            console.error("[SSO] Failed:", err);
           }
         }
         return;
@@ -169,7 +171,9 @@ function SettingsPageContent() {
       // Try SSO
       if (isInGHLIframe()) {
         try {
+          console.log("[SSO] Attempting GHL authentication...");
           const userData = await authenticateWithGHL();
+          console.log("[SSO] Success:", { userId: userData.userId, email: userData.email, type: userData.type, activeLocation: userData.activeLocation });
           setUserEmail(userData.email || null);
           if (userData.activeLocation && !locationId) {
             const resolved = await resolveIds({ ghl_location_id: userData.activeLocation });
@@ -180,7 +184,7 @@ function SettingsPageContent() {
             }
           }
         } catch (err) {
-          console.warn("GHL SSO failed:", err);
+          console.error("[SSO] Failed:", err);
         }
       }
 
