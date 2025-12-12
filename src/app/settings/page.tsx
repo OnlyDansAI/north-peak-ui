@@ -289,16 +289,26 @@ function SettingsPageContent() {
 
   // Load org data only for super admins
   useEffect(() => {
-    if (!isSuperAdmin || !orgId || !userEmail) return;
+    // Re-compute isSuperAdmin inside the effect to ensure fresh values
+    const isDemoOrgCheck = orgId === DEMO_ORG_ID;
+    const isSuperAdminCheck = adminOverride || isDemoOrgCheck || (effectiveEmail ? SUPER_ADMIN_EMAILS.includes(effectiveEmail.toLowerCase()) : false);
+
+    // Demo org doesn't require userEmail (SSO may timeout)
+    if (!isSuperAdminCheck || !orgId) return;
+    if (!isDemoOrgCheck && !userEmail) return;
+
+    // Use placeholder email for demo org API calls when SSO times out
+    const emailForApi = userEmail || (isDemoOrgCheck ? "demo@northpeaklife.com" : "");
+    if (!emailForApi) return;
 
     async function loadOrgData() {
       try {
         const [settingsData, productsData, routesData, toolsData, industriesData] = await Promise.all([
-          getOrgSettings(orgId!, userEmail!),
-          getOrgProducts(orgId!, userEmail!),
-          getOrgRoutes(orgId!, userEmail!),
-          getAvailableTools(orgId!, userEmail!),
-          getIndustries(orgId!, userEmail!),
+          getOrgSettings(orgId!, emailForApi),
+          getOrgProducts(orgId!, emailForApi),
+          getOrgRoutes(orgId!, emailForApi),
+          getAvailableTools(orgId!, emailForApi),
+          getIndustries(orgId!, emailForApi),
         ]);
 
         setOrgSettings(settingsData);
@@ -319,7 +329,7 @@ function SettingsPageContent() {
     }
 
     loadOrgData();
-  }, [isSuperAdmin, orgId, userEmail]);
+  }, [adminOverride, orgId, userEmail, effectiveEmail]);
 
   // Location form submit
   const handleLocationSubmit = async (e: React.FormEvent) => {
